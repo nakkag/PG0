@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+	<title>PG0 - チュートリアル</title>
+	<meta charset="UTF-8">
+	<style type="text/css">
+	<!--
+	pre {
+		background-color: #f0f8ff;
+		width: 700px;
+		margin-left: 40px;
+		padding: 10px 10px 10px 30px;
+		border: 1px solid #aaa;
+	}
+	h2 {
+		background-color: #87ceeb;
+	}
+	h3 {
+		margin-left: 10px;
+		background-color: #e0ffff;
+	}
+	div {
+		margin-left: 20px;
+	}
+	table {
+		border-collapse: collapse;
+		margin-left: 20px;
+	}
+	table th, table td {
+		border: solid 1px black;
+		padding: 2px 10px 2px 10px;
+	}
+	.comment {
+		color: #008000;
+	}
+	.keyword {
+		color: #0000ff;
+	}
+	.balloon {
+		background-color: #ffe4b5;
+		padding: 10px 20px 10px 20px;
+		font-weight: bold;
+		font-size: 120%;
+	}
+	#screen {
+		position: relative;
+		margin-left: 0px;
+	}
+	#editor {
+		position: absolute;
+		top: 260px;
+		left: 100px;
+	}
+	#variable {
+		position: absolute;
+		top: 260px;
+		left: 550px;
+	}
+	#console {
+		position: absolute;
+		top: 520px;
+		left: 300px;
+	}
+	-->
+	</style>
+</head>
+<body>
+<h1>PG0 - チュートリアル</h1>
+<h2>はじめに</h2>
+<div>プログラミング学習を目的としたプログラミング言語です。</div>
+<br />
+<div>プログラミングに最低限必要となる基本構造(順次、分岐、反復)の理解を目的としています。</div>
+<div>そのため非常に割り切った言語仕様となっています。</div>
+<div>分岐や反復の方式は一種類ずつとし、扱える型は整数のみとしています。</div>
+
+<h2>PG0の使い方</h2>
+<div>PG0の実行画面</div>
+<div id="screen">
+	<img src="image/screen.png" />
+	<div id="editor" class="balloon">エディタ</div>
+	<div id="variable" class="balloon">変数</div>
+	<div id="console" class="balloon">コンソール</div>
+</div>
+<h3>エディタ</h3>
+<div>プログラムを書く部分となります。</div>
+<div>プログラム実行中は実行している行が水色になります。</div>
+<div>プログラム実行中は編集することはできません。</div>
+
+<h3>変数</h3>
+<div>実行中の変数と変数の中の値を表示します。</div>
+<div>実行している行により変更された値は赤くなります。</div>
+<div>配列の場合は配列の中身を開閉表示することができます。</div>
+
+<h3>コンソール</h3>
+<div>実行に関する情報（実行、停止、終了）を表示します。</div>
+<div>exitで変数や値を指定した場合はここに内容が表示されます。</div>
+<div>プログラムにエラーがある場合はここに赤字で表示されます。</div>
+
+<h3>実行</h3>
+<div>エディタに書かれたプログラムを実行します。</div>
+
+<h3>ステップ実行</h3>
+<div>エディタに書かれたプログラムをステップ実行します。</div>
+<div>ステップ実行は再度ステップ実行を選択すると次の行を実行します。</div>
+<div>この機能を使うと一行ずつ実行することができます。</div>
+
+<h3>カーソル行まで実行</h3>
+<div>エディタのカーソルがある行までプログラムを実行します。</div>
+
+<h3>停止</h3>
+<div>実行中のプログラムを停止します。</div>
+
+<h3>実行速度</h3>
+<div>実行で動作するプログラムの速度を選択します。</div>
+<li>速い - プログラムの実行中を画面上に表示せずに一気に実行します。</li>
+<li>普通 - プログラムを一行ずつ自動実行します。</li>
+<li>遅い - ゆっくり目にプログラムを一行ずつ自動実行します。</li>
+
+<h2>変数</h2>
+<div>変数は数値を代入するための入れ物です。</div>
+<div>変数は使うときに用意されますが、var を使って変数を明示的に用意することもできます。</div>
+<pre>
+<span class="notranslate"><span class="keyword">var</span> i, j = 100;</span> <span class="comment"><span class="notranslate">//</span>「,」で複数指定可能</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<img src="image/sc_var.png" />
+
+<h2>配列</h2>
+<div>配列は変数を連続的に並べた入れ物です。</div>
+<div>配列を扱うには変数の後に[]を指定します。</div>
+<pre>
+<span class="notranslate">a[0] = 100;</span> <span class="comment"><span class="notranslate">//</span>先頭</span>
+<span class="notranslate">a[1] = 200;</span> <span class="comment"><span class="notranslate">//</span>2番目</span>
+<span class="notranslate">i = 5;</span>
+<span class="notranslate">b[i] = 10;</span> <span class="comment"><span class="notranslate">//</span>インデックスに変数を指定</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<img src="image/sc_array_1.png" />
+<br />
+<div>配列の初期化を行うには {値1,値2,値3,...} を代入します。</div>
+<pre>
+<span class="notranslate">a[] = {1,2,3};</span> <span class="comment"><span class="notranslate">//</span>a[0] = 1;a[1] = 2;a[2] = 3; と同じ意味</span>
+<span class="notranslate">b[] = {1,2,{10,20,{100,200,300}},3};</span> <span class="comment"><span class="notranslate">//</span>多次元の初期化</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<img src="image/sc_array_2.png" />
+
+<h2>基本構造</h2>
+<h3>順次</h3>
+<div>一つの文は「;」で区切って記述します。</div>
+<div>文は上から順番に実行されます。</div>
+<pre>
+<span class="notranslate">a = 1;</span> <span class="comment"><span class="notranslate">//</span>1番目に実行、a に 1 を代入</span>
+<span class="notranslate">b = 2;</span> <span class="comment"><span class="notranslate">//</span>2番目に実行、b に 2 を代入</span>
+</pre>
+<div>ブロックは {～} で括って複数の文をまとめて一つの文として扱います。</div>
+<pre>
+<span class="notranslate">{</span>
+	<span class="notranslate">a = 1;</span>
+	<span class="notranslate">b = 2;</span>
+<span class="notranslate">}</span>
+</pre>
+
+<h3>分岐</h3>
+<li><span class="notranslate">if</span></li>
+<div><span class="notranslate">if</span>文は条件により文の実行を制御します。</div>
+<pre>
+<span class="keyword notranslate">if</span> (式)
+	文;
+</pre>
+<div>式の条件が一致する場合に文を実行し、一致しない場合は文を実行しません。</div>
+<pre>
+<span class="notranslate">a = 2;</span>
+<span class="notranslate">b = 1;</span>
+<span class="notranslate"><span class="keyword">if</span> (a > b) {</span>
+	<span class="notranslate">b = a;</span> <span class="comment"><span class="notranslate">//</span>aがbより大きい時に実行</span>
+<span class="notranslate">}</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<img src="image/sc_if_1.png" />
+<li><span class="notranslate">else</span></li>
+<div><span class="notranslate">if</span>文で条件が一致しない場合の文を指定します。</div>
+<div><span class="notranslate">if</span>文で文が実行された場合は<span class="notranslate">else</span>文に続く文は実行されません。</div>
+<pre>
+<span class="notranslate">a = 1;</span>
+<span class="notranslate">b = 2;</span>
+<span class="notranslate"><span class="keyword">if</span> (a > b) {</span>
+	<span class="notranslate">b = a;</span>  <span class="comment"><span class="notranslate">//</span>aがbより大きい時に実行</span>
+<span class="notranslate">} <span class="keyword">else</span> {</span>
+	<span class="notranslate">a = b;</span>  <span class="comment"><span class="notranslate">//</span>aがbより小さいか等しい時に実行</span>
+<span class="notranslate">}</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<img src="image/sc_if_2.png" />
+
+<h3>反復</h3>
+<li><span class="notranslate">while</span></li>
+<div><span class="notranslate">while</span>文は式によりループを行います。</div>
+<pre>
+<span class="keyword notranslate">while</span> (式)
+	文;
+</pre>
+<div>式の結果が一致する間、文を実行し続けます。</div>
+<pre>
+i = 1;
+<span class="keyword notranslate">while</span> <span class="notranslate">(i <= 10) {</span> <span class="comment"><span class="notranslate">//</span>1から10までループ</span>
+	<span class="notranslate">i = i + 1;</span>
+}
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<img src="image/sc_while.png" />
+
+<h2>その他</h2>
+<div>「<a href="pg0.txt">pg0.txt</a>」にPG0の言語仕様について記載してあります。</div>
+<br />
+<div>実行中のプログラムを終了する場合は <span class="notranslate">exit</span> を書きます。</div>
+<pre>
+<span class="keyword notranslate">exit</span>;
+</pre>
+<div><span class="notranslate">exit</span> には変数を設定でき、設定した変数の内容はコンソールに表示されます。</div>
+<pre>
+<span class="notranslate">i = 100;</span>
+<span class="notranslate"><span class="keyword">exit</span> i;</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<img src="image/sc_exit.png" />
+
+<h2>サンプル</h2>
+<div>PG0用のサンプルプログラムです。PG0で実行する事ができます。</div>
+<h3>1_var.pg0</h3>
+<div>変数を使ったサンプルです。</div>
+<pre>
+<span class="notranslate">a = 1;</span>
+<span class="notranslate">b = 2;</span>
+<span class="notranslate">c = a + b;</span>
+<span class="notranslate"><span class="keyword">exit</span> c;</span>
+</pre>
+
+<h3>2_array.pg0</h3>
+<div>配列を使ったサンプルです。</div>
+<pre>
+<span class="notranslate">a[] = {1,2,3};</span>
+<span class="notranslate">a[3] = 4;</span>
+<span class="notranslate">b[] = {5,6,7};</span>
+<span class="notranslate">c[] = a + b;</span>
+<span class="notranslate"><span class="keyword">exit</span> c;</span>
+</pre>
+
+<h3>3_if.pg0</h3>
+<div>if文を使ってうるう年を判定するサンプルです。</div>
+<pre>
+<span class="comment"><span class="notranslate">//</span> うるう年判定</span>
+<span class="notranslate"><span class="keyword">var</span> year = 2018;</span>
+<span class="notranslate"><span class="keyword">var</span> leapYear;</span>
+<span class="notranslate"><span class="keyword">if</span> (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)) {</span>
+	<span class="comment"><span class="notranslate">//</span> うるう年</span>
+	<span class="notranslate">leapYear = 1;</span>
+<span class="notranslate">} <span class="keyword">else</span> {</span>
+	<span class="notranslate">leapYear = 0;</span>
+<span class="notranslate">}</span>
+<span class="notranslate"><span class="keyword">exit</span> leapYear;</span>
+</pre>
+
+<h3>4_while.pg0</h3>
+<div>while文を使って1から10までの足し算をするサンプルです。</div>
+<pre>
+<span class="comment"><span class="notranslate">//</span> 1から10までの足し算</span>
+<span class="notranslate">cnt = 0;</span>
+<span class="notranslate">i = 1;</span>
+<span class="notranslate"><span class="keyword">while</span> (i <= 10) {</span>
+	<span class="notranslate">cnt = cnt + i;</span>
+	<span class="notranslate">i = i + 1;</span>
+<span class="notranslate">}</span>
+<span class="notranslate"><span class="keyword">exit</span> cnt;</span>
+</pre>
+
+<h3>5_max.pg0</h3>
+<div>配列の中から最大の値を探すサンプルです。</div>
+<pre>
+<span class="comment"><span class="notranslate">//</span> 最大値の検索</span>
+<span class="notranslate">num[] = {3,4,56,25,47,72,2,23,25,9};</span>
+<span class="notranslate">size = 10;</span>
+<span class="notranslate">max = num[0];</span>
+<span class="notranslate">i = 1;</span>
+<span class="notranslate"><span class="keyword">while</span> (i < size - 1) {</span>
+	<span class="notranslate"><span class="keyword">if</span> (max < num[i]) {</span>
+		<span class="notranslate">max = num[i];</span>
+	<span class="notranslate">}</span>
+	<span class="notranslate">i = i + 1;</span>
+<span class="notranslate">}</span>
+<span class="notranslate"><span class="keyword">exit</span> max;</span>
+</pre>
+
+<h3>6_sort.pg0</h3>
+<div>配列の中身を小さい順に並べ替えるサンプルです。</div>
+<pre>
+<span class="comment"><span class="notranslate">//</span> 配列のソート</span>
+<span class="notranslate">num[] = {3,4,56,25,47,72,2,23,25,9};</span>
+<span class="notranslate">size = 10;</span>
+<span class="notranslate">i = 0;</span>
+<span class="notranslate"><span class="keyword">while</span> (i < size - 1) {</span>
+	<span class="notranslate">j = size - 1;</span>
+	<span class="notranslate"><span class="keyword">while</span> (j > i) {</span>
+		<span class="notranslate"><span class="keyword">if</span> (num[j - 1] > num[j]) {</span>
+			<span class="notranslate">tmp = num[j];</span>
+			<span class="notranslate">num[j] = num[j - 1];</span>
+			<span class="notranslate">num[j - 1] = tmp;</span>
+		<span class="notranslate">}</span>
+		<span class="notranslate">j = j - 1;</span>
+	<span class="notranslate">}</span>
+	<span class="notranslate">i = i + 1;</span>
+<span class="notranslate">}</span>
+<span class="notranslate"><span class="keyword">exit</span> num;</span>
+</pre>
+<hr />
+<div style="text-align: center;">
+	Copyright &copy; 1996-2018 by <a href="mailto:nakka@nakka.com">Ohno Tomoaki</a>. All rights reserved.
+</div>
+</body>
+</html>

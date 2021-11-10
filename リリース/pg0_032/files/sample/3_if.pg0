@@ -1,0 +1,10 @@
+// うるう年判定
+var year = 2018
+var leapYear
+if (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)) {
+	// うるう年
+	leapYear = 1
+} else {
+	leapYear = 0
+}
+exit leapYear

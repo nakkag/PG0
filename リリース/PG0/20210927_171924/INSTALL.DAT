@@ -1,0 +1,311 @@
+[Project]
+ProjectName=PG0
+MajorVersion=4
+MinorVersion=61
+Generator=EINSTALL 2.0
+ProjectType=0
+CreateFileType=1
+InstallSource=Files
+CreateFolderBeforeBackup=1
+InstallerModuleKey=
+
+[SupportInfo]
+Publisher=Copyright (C) 1996-2021 by Ohno Tomoaki.
+Corporation=
+HelpLink=
+HelpTelephon=
+URLInfoAbout=https://www.nakka.com/
+URLUpdateInfo=
+
+[FilesSetting]
+ExcludeCommonComponent=0
+
+[Installer]
+EnableShortCutSetting=1
+EnableSupportInfo=0
+EnableProgramSetting=0
+InstallMethod=0
+EnableSilentInstall=0
+EnableSilentUnInstall=0
+Options=0
+FileSizeUnit=0
+EnableRelationApplicationSetting=0
+UnInstallerAutoSetting=1
+UnInstallerStoreFolder=%WindowsDirectory%
+UnInstallerStoreSubFolder=
+UnInstallerFileName=eiunin22.exe
+UnInstallerOptions=1
+
+[ShortCutSetting]
+GroupName=PG0
+ShowCheckBox=1
+VisibleSelectUser=0
+CheckSelectUser=0
+EnableSelectUser=1
+DefaultCheckBox=1
+
+[Software]
+SoftName=PG0
+InstallerTitle=PG0 Ver 0.3.4
+MainFileName=%InstallDir%\pg0.exe
+Copyright=Copyright (C) 1996-2021 by Ohno Tomoaki.
+FolderTargetChange=0
+Folder=%ProgramFilesDir%|pg0
+SearchFileDir=%ProgramFilesDir%|
+InstallFolderOption=0
+LogoPosition=0|0|0||||||||||||||||||
+LogoSize=0|0|0||||||||||||||||||
+LogoFileName=
+LogoEnabled=0
+LogoNoResize=0
+LogoNoCenter=0
+LogoNoHeaderMes=0
+LogoTransparent=0
+MajorVersion=0
+MinorVersion=3
+ReleaseVersion=4
+BuildVersion=0
+OtherVersion=0
+DocumentFile=
+LicenseFile=
+AlwaysAgree=0
+ReadLicenseTillTheLast=0
+
+[OSSetting]
+CheckOSVersion=1
+OSVersion=4095
+ProductType=0
+SPVersion=0,0,0,0,0,0,0,0,0,,,,,,,,,,,,
+
+[ScreenSetting]
+Panel01=1
+Panel02=0
+Panel03=0
+Panel04=1
+Panel05=1
+Panel06=1
+Panel07=1
+Panel08=1
+Panel09=1
+Panel10=1
+Panel11=1
+
+[ProgramSetting]
+CheckBoxCaption=ç°Ç∑ÇÆé¿çsÇ∑ÇÈ(&R)
+DefaultCheckBoxState=1
+EnableGroupCheckBox=1
+
+[InstallLimit]
+User=0
+EndFileRenOperation=0
+FileUseCheck=1
+MemoryCheck=0
+
+[ShortCutItems]
+0=PG0|%InstallDir%\pg0.exe||%InstallDir%|%InstallDir%\pg0.exe|0||0|3|0|65535||||||||||
+
+[ProgramItems]
+0=1|%InstallDir%\|pg0.exe||0|0|2|0,0,HKEY_CURRENT_USER,,,,0,,,,,,,,,,,,,,|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,|1,1,PG0Çé¿çsÇ∑ÇÈ,,,,,,,,,,,,,,,,,,||||||||||
+
+[Control_Info]
+LocalID=1033
+DefaultLocalID=1033
+
+[ResourceString_1033]
+Charset=1
+FontSize=-12
+FontName=Arial
+FontNameF=Arial
+0=Kantan Installer
+1=%s UnInstaller
+50=Prepare Kantan Installer.
+100=Welcome to the %s Installation Program
+101=This program will install %s on your computer.
+103=Read Documents
+104=Include important information not mentioned in attached manuals.
+106=License Agreement
+107=Include information about License Agreement for using the software.
+109=Select Destination Folder
+110=Set up the destination folder where the application will be installed.
+112=Select Program Folder
+113=Set up the program folder icon.
+115=Create Shortcut
+116=Set up the additional options to create an icon.
+118=Check the Installation information
+119=Indicate the installation information such as the destination folder.
+121=Installation
+122=Now installing as your setting. Please wait...
+124=Congratulations!
+125=The application has been successfully installed.
+127=Uninstallation
+128=Remove the application from the system.
+130=Finished Uninstallation
+131=The application has been uninstalled.
+133=Choice of a component to install
+134=Can choose a component to install in a system.
+200=OK
+201=Cancel
+202=&Back
+203=&Next
+204=&Finish
+205=B&rowse
+206=&Abort
+207=&Default Folder
+208=&Value
+250=Conponent Name
+251=Request Space
+252=Common Component
+300=I &accept the agreement above.
+301=Set up for &anyone who uses this computer
+302=Restart now
+303=Create Shortcut on &Desktop
+304=Create Shortcut in &Startup
+305=Create Shortcut in "S&end to"
+306=Create Shortcut in "Q&uick Launch"
+307=Do not create a start menu &folder
+400=Updating %s
+401=Copying %s
+402=Saving %s to the registry...
+403=Saving %s to the system...
+404=Deleting %s from the registry...
+405=Canceling %s...
+406=Creating the shortcut for %s...
+407=Creating the folder...
+408=Deleting unnecessary files...
+409=Deleting unnecessary folders...
+410=Deleting files...
+411=Deleting folders...
+412=Writing the value into the registry...
+413=Deleting the value from the registry...
+414=Deleting the shortcut...
+415=Deleting the registry key...
+416=Writing the value into the INI file...
+417=Deleting the value from the INI file...
+418=Writing the uninstallation information into the system...
+419=Exit all application programs running on the computer, then click OK.
+420=It is strongly recommended that you exit all programs before running this installation program.
+421=Click Next to continue the installation. Click Cancel to quit the installation program.
+422=Please read the following document. Press the Page Down key to see the rest of the document.
+423=Please read the following license agreement carefully. Press the Page Down key to see the rest of the agreement.
+424=Select the folder where files will be installed, then click Next.
+425=%s will be installed to the following folder. You cannot change.
+426=Select the folder from Start Menu where the shortcut for the application will be set, then click Next.
+427=Select an additional process of the program, then Click Next.
+428=Check the installation information, then click Next when you do not need to change it. Click Back to reenter the installation information, then edit it when you need to do it.
+429=Now Processing. Please wait until the process is completed.
+430=The application has been successfully installed.
+431=Click the registered icon to start the installed program.
+432=You should restart your system before using the program.
+433=Click Next to uninstall the application from your system.
+434=Click Cancel to stop the uninstallation process.
+435=Now uninstalling...#13Please wait until the uninstallation is finished...
+436=%s has been uninstalled.
+437=Click Finish
+438=Searching  previous versions. Please wait...
+439=Please read the following license agreement carefully. Press the Page Down key to see the rest of the agreement.#13Must read all content to agree to a contract.
+440=%s has been uninstalled.#13A uninstaller is deleted at the time of a boot of next Windows.
+441=An application is installed by the next setting.When there is not a problem, please click Next.When I cancel installation, please click "cancel".
+442=Please appoint a Install folder.
+443=Please choose a component to install in a system.
+444=It is a main program file.
+500=WARNING: This program is protected by copyright law and international treaties.
+501=Unauthorized reproduction or distribution of this program, or any portion of it is prohibited by Law.
+502=Space Available :
+503=Space Required :
+504=Unknown
+505=Component List:
+600=This program uninstalls %s #13Please follow the instructions of the uninstall program.
+601=Canceled installation.
+700=Failed to create the folder. The installation will now terminate.
+701=The destination folder is not selected.
+702=Please do not appoint System Folder or a special folder.
+703=The selected drive does not have enough disk space to be installed.#13Delete unnecessary files from the disk, or select a different folder again.
+704=Failed in a copy of a file.#13Are you sure you want to quit the installation?#13#13There is a possibility that an application does not work normally even if it continues.
+705=%s is not installed.Or search processing was canceled.#13The installation will now terminate.
+706=The previous process has not been completed. Please restart the system, then continue the process.
+707=Only administrator can install it. The installation will now terminate.
+708=The installable period is over.#13Please contact the distributor about the latest version. The installation will now terminate.
+709=%s is not available under the OS which you are using.#13Please use different version that is available under your system or contact the distributor about the operating environments.#13The installation will now terminate.
+710=%s is already installed. Please try again after uninstalling it.
+711=Installation to this computer is limited.Please contact a manager.#13The installation will now terminate.
+712=Please input a right serial number.
+713=Some files are used by the other application.#13Please finish all applications before continuing.#13#13Installation processing is canceled in a click of "Cancel" button.
+714=The character (* ? / ; " < > |) which is uselessness is included. Or be not full paths.#13A folder at the time of installation has to appoint it with a full path.
+715=Please work on installation in Administrator or PowerUser.
+716=Only administrator can uninstall it. The uninstallation will now terminate.
+717=Please work on uninstallation in Administrator or PowerUser.
+718=Some files are used by the other application.#13Please finish all applications before continuing.#13#13Installation processing is canceled in a click of "Cancel" button.#13#13Filename: %s
+719=Some files are used by the other application.#13Please finish all applications before continuing.#13#13UnInstallation processing is canceled in a click of "Cancel" button.#13#13Filename: %s
+720=Please uninstall the following applications to install %s.#13#13%s
+721=Please uninstall the following applications to uninstall %s.#13#13%s
+722=It is necessary for the following applications to be installed to install %s.#13#13%s
+723=The following system requirements are necessary for %s.#13#13Memory: %s
+724=Please input numerical value.
+800=%s already exists. Do you want to overwrite it? #13#13New file : %s#13Original file : %s
+801=%s is read-only. Change its attribute, then overwrite OK? #13#13source file : %s#13destination file : %s
+802=Do you want to delete the folder(%s)? #13#13All files in the folder will be deleted.
+803=Do you want to uninstall %s?
+804=%s is a shared file. Are you sure you want to delete it?#13#13If other applications are using the file, it could  not work properly. Select No if you are not sure you can delete it.
+805=%s is a shared file. Are you sure you want to delete it?#13#13This file may no longer be needed by any application. #13But doing so may prevent other applications from running correctly.#13 Select No if you are not sure you can delete it.
+806=The destination folder does not exist. Do you want to create it?
+807=The latest version is already installed. #13Do you want to continue?#13Click YES if you want to install to repair it.
+808=Are you sure you want to quit the installation?
+809=You have to restart a system to continue installation.
+810=Do you delete personal setting of an %s?
+811=Please input a serial number.
+812=Please reboot a system to use an application.#13Do reboot now?
+813=Reboot is necessary to complete processing.#13Do reboot now?
+814=Do cancel a search?#13When chooses "yes", cancel installation processing.
+815=Do cancel a search?
+816=Are you sure you want to delete it?#13RootKey : %s#13Subkey : %s
+817=Are you sure you want to delete it?#13RootKey : %s#13Subkey : %s#13ValueName : %s
+818=Are you sure you want to delete it?#13Folder : %s#13FileName: %s
+819=Are you sure you want to delete it?#13Folder : %s
+820=Selected folder already exists and contains files that can be overwritten during this installation.#13Do you want to continue?
+821=Setup is not complete. If you quit the setup program now, the program will not be installed.#13You may run the setup program at a later time to complete the installation.#13#13To Continue installing, click Cancel. To quit the Setup program, click Yes.
+822=The latest version is already installed.#13I canceled installation processing.
+850=Information
+851=Confirmation
+852=Warning
+853=Error
+854=The input of a serial number
+900=Destination Folder:
+901=Program Folder:
+902=Extra Menu:
+903=A component to install in a system:
+1000=Create Shortcut on Desktop
+1001=Create Shortcut in "Startup"
+1002=Create Shortcut in "Send to"
+1003=Create Shortcut in "Quick Launch"
+1004=Do not create "Start Menu" Folder
+1005=Create shortcut for all users
+1100=%s byte
+1101=%s KB
+1102=%s MB
+1103=%s GB
+1104=%s TB
+
+[Files]
+0=1|0|%InstallDir%|sample|1_var.pg0|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+1=1|0|%InstallDir%|sample|2_array.pg0|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+2=1|0|%InstallDir%|sample|3_if.pg0|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+3=1|0|%InstallDir%|sample|4_while.pg0|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+4=1|0|%InstallDir%|sample|5_max.pg0|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+5=1|0|%InstallDir%|sample|6_sort.pg0|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+6=1|0|%InstallDir%|image|screen.png|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+7=1|0|%InstallDir%|image|sc_array_1.png|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+8=1|0|%InstallDir%|image|sc_array_2.png|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+9=1|0|%InstallDir%|image|sc_exit.png|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+10=1|0|%InstallDir%|image|sc_if_1.png|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+11=1|0|%InstallDir%|image|sc_if_2.png|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+12=1|0|%InstallDir%|image|sc_sequence.png|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+13=1|0|%InstallDir%|image|sc_var.png|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+14=1|0|%InstallDir%|image|sc_while.png|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+15=1|0|%InstallDir%||microbit.dll|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+16=1|0|%InstallDir%||microbit.txt|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+17=1|0|%InstallDir%||pg0.5.txt|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+18=1|0|%InstallDir%||pg0.exe|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+19=1|0|%InstallDir%||pg0.txt|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+20=1|0|%InstallDir%||pg0cmd.exe|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+21=1|0|%InstallDir%||tutorial.html|||0|0|4095|0,0,0,0,0,0,0,0,0,,,,,,,,,,,,||||||||||
+

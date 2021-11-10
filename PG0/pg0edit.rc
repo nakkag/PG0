@@ -1,0 +1,369 @@
+// Microsoft Visual C++ generated resource script.
+//
+#pragma code_page(65001)
+
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "winres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// 日本語 (日本) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_JPN)
+LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""winres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_ICON_MAIN           ICON                    "icon1.ico"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDR_MENU MENU
+BEGIN
+    POPUP "ファイル(&F)"
+    BEGIN
+        MENUITEM "新規(&N)\tCtrl+N",              ID_MENUITEM_NEW
+        MENUITEM "開く(&O)...\tCtrl+O",           ID_MENUITEM_OPEN
+        MENUITEM "上書き保存(&S)\tCtrl+S",           ID_MENUITEM_SAVE
+        MENUITEM "名前を付けて保存(&A)...",             ID_MENUITEM_SAVEAS
+        MENUITEM SEPARATOR
+        MENUITEM "フォント(&F)...",                 ID_MENUITEM_FONT
+        MENUITEM "行番号(&L)",                     ID_MENUITEM_LINE_NO
+        MENUITEM SEPARATOR
+        MENUITEM "PG0.5(&P)",                   ID_MENUITEM_PG05
+        MENUITEM SEPARATOR
+        MENUITEM "終了(&X)",                      ID_MENUITEM_CLOSE
+    END
+    POPUP "編集(&E)"
+    BEGIN
+        MENUITEM "元に戻す(&U)\tCtrl+Z",            ID_MENUITEM_UNDO
+        MENUITEM "やり直し(&R)\tCtrl+Y",            ID_MENUITEM_REDO
+        MENUITEM SEPARATOR
+        MENUITEM "切り取り(&T)\tCtrl+X",            ID_MENUITEM_CUT
+        MENUITEM "コピー(&C)\tCtrl+C",             ID_MENUITEM_COPY
+        MENUITEM "貼り付け(&P)\tCtrl+V",            ID_MENUITEM_PASTE
+        MENUITEM "削除(&D)\tDel",                 ID_MENUITEM_DELETE
+        MENUITEM SEPARATOR
+        MENUITEM "検索(&F)...\tCtrl+F",           ID_MENUITEM_FIND
+        MENUITEM "次を検索(&N)\tF3",                ID_MENUITEM_FINDNEXT
+        MENUITEM SEPARATOR
+        MENUITEM "すべて選択(&A)\tCtrl+A",           ID_MENUITEM_SELECT_ALL
+    END
+    POPUP "実行(&E)"
+    BEGIN
+        MENUITEM "実行(&E)\tF5",                  ID_MENUITEM_EXEC
+        MENUITEM "ステップ実行(&T)\tF10",             ID_MENUITEM_STEP
+        MENUITEM "カーソル行まで実行(&R)\tCtrl+F10",     ID_MENUITEM_RUN_TO_CURSOR
+        MENUITEM "停止(&S)\tShift+F5",            ID_MENUITEM_STOP
+        MENUITEM SEPARATOR
+        POPUP "実行速度(&P)"
+        BEGIN
+            MENUITEM "待ち無し(&W)",                    ID_MENUITEM_NO_WAIT
+            MENUITEM SEPARATOR
+            MENUITEM "速い(&H)",                      ID_MENUITEM_SPEED_HIGH
+            MENUITEM "普通(&M)",                      ID_MENUITEM_SPEED_MID
+            MENUITEM "遅い(&L)",                      ID_MENUITEM_SPEED_LOW
+        END
+        MENUITEM SEPARATOR
+        MENUITEM "実行結果のクリア(&C)",                ID_MENUITEM_CLEAR
+    END
+    POPUP "ヘルプ(&H)"
+    BEGIN
+        MENUITEM "チュートリアル(&T)...",              ID_MENUITEM_TUTORIAL
+        MENUITEM SEPARATOR
+        MENUITEM "バージョン情報(&A)...",              ID_MENUITEM_ABOUT
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Accelerator
+//
+
+IDR_ACCELERATOR ACCELERATORS
+BEGIN
+    VK_F5,          ID_MENUITEM_EXEC,       VIRTKEY, NOINVERT
+    "F",            ID_MENUITEM_FIND,       VIRTKEY, CONTROL, NOINVERT
+    "N",            ID_MENUITEM_NEW,        VIRTKEY, CONTROL, NOINVERT
+    "O",            ID_MENUITEM_OPEN,       VIRTKEY, CONTROL, NOINVERT
+    VK_F10,         ID_MENUITEM_RUN_TO_CURSOR, VIRTKEY, CONTROL, NOINVERT
+    "S",            ID_MENUITEM_SAVE,       VIRTKEY, CONTROL, NOINVERT
+    "A",            ID_MENUITEM_SELECT_ALL, VIRTKEY, CONTROL, NOINVERT
+    VK_F10,         ID_MENUITEM_STEP,       VIRTKEY, NOINVERT
+    VK_F5,          ID_MENUITEM_STOP,       VIRTKEY, SHIFT, NOINVERT
+    VK_F3,          ID_MENUITEM_FINDNEXT,   VIRTKEY, NOINVERT
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Toolbar
+//
+
+IDR_TOOLBAR TOOLBAR 32, 32
+BEGIN
+    BUTTON      ID_BUTTON_RUN
+    BUTTON      ID_BUTTON_STEP
+    BUTTON      ID_BUTTON_STOP
+END
+
+IDR_TOOLBAR_64 TOOLBAR 64, 64
+BEGIN
+    BUTTON      ID_BUTTON_RUN
+    BUTTON      ID_BUTTON_STEP
+    BUTTON      ID_BUTTON_STOP
+END
+
+IDR_TOOLBAR_96 TOOLBAR 128, 128
+BEGIN
+    BUTTON      ID_BUTTON_RUN
+    BUTTON      ID_BUTTON_STEP
+    BUTTON      ID_BUTTON_STOP
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+IDR_TOOLBAR             BITMAP                  "toolbar1.bmp"
+
+IDR_TOOLBAR_64          BITMAP                  "toolbar64.bmp"
+
+IDR_TOOLBAR_96          BITMAP                  "toolbar96.bmp"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 0,3,5,0
+ PRODUCTVERSION 0,3,5,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041104b0"
+        BEGIN
+            VALUE "CompanyName", "*"
+            VALUE "FileDescription", "PG0"
+            VALUE "FileVersion", "0.3.5.0"
+            VALUE "InternalName", "PG0"
+            VALUE "LegalCopyright", "Copyright (C) 1996-2021 by Ohno Tomoaki. All rights reserved."
+            VALUE "OriginalFilename", "pg0.exe"
+            VALUE "ProductName", "PG0"
+            VALUE "ProductVersion", "0.3.5.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x411, 1200
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE
+BEGIN
+    IDS_STRING_OPEN_TITLE   "開く"
+    IDS_STRING_SAVE_TITLE   "名前を付けて保存"
+    IDS_STRING_MSG_MODIFY   "変更を保存しますか？"
+    IDS_STRING_CONSOLE_START "開始"
+    IDS_STRING_CONSOLE_END  "終了"
+    IDS_STRING_CONSOLE_STOP "停止"
+END
+
+STRINGTABLE
+BEGIN
+    IDS_STRING_CONSOLE_RESULT "実行結果: "
+    IDS_STRING_HEADER_NAME  "変数"
+    IDS_STRING_HEADER_VALUE "値"
+    IDS_STRING_CONFIRM_TUTORIAL 
+                            "チュートリアルを表示しますか？\n\n以降このメッセージを表示しない場合は「いいえ」を選択してください。"
+END
+
+STRINGTABLE
+BEGIN
+    ID_MENUITEM_EXEC        "実行"
+    ID_MENUITEM_STOP        "停止"
+    ID_MENUITEM_STEP        "ステップ実行"
+END
+
+#endif    // 日本語 (日本) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// 英語 (米国) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDR_MENU MENU
+BEGIN
+    POPUP "&File"
+    BEGIN
+        MENUITEM "&New\tCtrl+N",                ID_MENUITEM_NEW
+        MENUITEM "&Open...\tCtrl+O",            ID_MENUITEM_OPEN
+        MENUITEM "&Save\tCtrl+S",               ID_MENUITEM_SAVE
+        MENUITEM "Save &As...",                 ID_MENUITEM_SAVEAS
+        MENUITEM SEPARATOR
+        MENUITEM "&Font...",                    ID_MENUITEM_FONT
+        MENUITEM "&Line number",                ID_MENUITEM_LINE_NO
+        MENUITEM SEPARATOR
+        MENUITEM "&PG0.5",                      ID_MENUITEM_PG05
+        MENUITEM SEPARATOR
+        MENUITEM "E&xit",                       ID_MENUITEM_CLOSE
+    END
+    POPUP "&Edit"
+    BEGIN
+        MENUITEM "&Undo\tCtrl+Z",               ID_MENUITEM_UNDO
+        MENUITEM "&Redo\tCtrl+Y",               ID_MENUITEM_REDO
+        MENUITEM SEPARATOR
+        MENUITEM "Cu&t\tCtrl+X",                ID_MENUITEM_CUT
+        MENUITEM "&Copy\tCtrl+C",               ID_MENUITEM_COPY
+        MENUITEM "&Paste\tCtrl+V",              ID_MENUITEM_PASTE
+        MENUITEM "De&lete\tDel",                ID_MENUITEM_DELETE
+        MENUITEM SEPARATOR
+        MENUITEM "&Find...\tCtrl+F",            ID_MENUITEM_FIND
+        MENUITEM "Find &Next\tF3",              ID_MENUITEM_FINDNEXT
+        MENUITEM SEPARATOR
+        MENUITEM "Select &All\tCtrl+A",         ID_MENUITEM_SELECT_ALL
+    END
+    POPUP "&Exec"
+    BEGIN
+        MENUITEM "&Exec\tF5",                   ID_MENUITEM_EXEC
+        MENUITEM "S&tep exec\tF10",             ID_MENUITEM_STEP
+        MENUITEM "&Run to Cursor\tCtrl+F10",    ID_MENUITEM_RUN_TO_CURSOR
+        MENUITEM "&Stop\tShift+F5",             ID_MENUITEM_STOP
+        MENUITEM SEPARATOR
+        POPUP "Exec s&peed"
+        BEGIN
+            MENUITEM "No &Wait",                    ID_MENUITEM_NO_WAIT
+            MENUITEM SEPARATOR
+            MENUITEM "&Fast",                       ID_MENUITEM_SPEED_HIGH
+            MENUITEM "&Normal",                     ID_MENUITEM_SPEED_MID
+            MENUITEM "&Slow",                       ID_MENUITEM_SPEED_LOW
+        END
+        MENUITEM SEPARATOR
+        MENUITEM "&Clear console",              ID_MENUITEM_CLEAR
+    END
+    POPUP "&Help"
+    BEGIN
+        MENUITEM "&Tutorial....",               ID_MENUITEM_TUTORIAL
+        MENUITEM SEPARATOR
+        MENUITEM "&About...",                   ID_MENUITEM_ABOUT
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE
+BEGIN
+    IDS_STRING_OPEN_TITLE   "Open"
+    IDS_STRING_SAVE_TITLE   "Save As"
+    IDS_STRING_MSG_MODIFY   "Do you want to save the changes?"
+    IDS_STRING_CONSOLE_START "Start"
+    IDS_STRING_CONSOLE_END  "End"
+    IDS_STRING_CONSOLE_STOP "Stop"
+END
+
+STRINGTABLE
+BEGIN
+    IDS_STRING_CONSOLE_RESULT "Result: "
+    IDS_STRING_HEADER_NAME  "Name"
+    IDS_STRING_HEADER_VALUE "Value"
+    IDS_STRING_CONFIRM_TUTORIAL 
+                            "Would you like to display the tutorial?\n\nSelect ""No"" if you do not want to display this message at a later time."
+END
+
+STRINGTABLE
+BEGIN
+    ID_MENUITEM_EXEC        "Exec"
+    ID_MENUITEM_STOP        "Stop"
+    ID_MENUITEM_STEP        "Step exec"
+END
+
+#endif    // 英語 (米国) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

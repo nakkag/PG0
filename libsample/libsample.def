@@ -1,0 +1,4 @@
+EXPORTS
+	_lib_func_sum
+	_lib_func_tolower
+	_lib_func_toupper

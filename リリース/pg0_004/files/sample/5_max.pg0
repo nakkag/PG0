@@ -1,0 +1,12 @@
+// Å‘å’l‚ÌŒŸõ
+num[] = {3,4,56,25,47,72,2,23,25,9};
+size = 10;
+max = num[0];
+i = 1;
+while (i < size - 1) {
+	if (max < num[i]) {
+		max = num[i];
+	}
+	i = i + 1;
+}
+exit max;

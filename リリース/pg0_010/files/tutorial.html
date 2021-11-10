@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+	<title>PG0 - チュートリアル</title>
+	<meta charset="UTF-8">
+	<style type="text/css">
+	<!--
+	pre {
+		background-color: #f0f8ff;
+		width: 720px;
+		margin-left: 40px;
+		padding: 10px 10px 10px 30px;
+		border: 1px solid #aaa;
+	}
+	h2 {
+		margin-left: 0px;
+		background-color: #87ceeb;
+	}
+	h3 {
+		margin-left: 10px;
+		background-color: #e0ffff;
+	}
+	h4 {
+		margin-left: 20px;
+		background-color: #f0ffff;
+	}
+	div {
+		margin-left: 20px;
+	}
+	table {
+		border-collapse: collapse;
+		margin-left: 40px;
+	}
+	table th, table td {
+		border: solid 1px black;
+		padding: 5px 15px 5px 15px;
+	}
+	table th {
+		background-color: #f0f0f0;
+	}
+	.comment {
+		color: #008000;
+	}
+	.keyword {
+		color: #0000ff;
+	}
+	.balloon {
+		background-color: #ffe4b5;
+		padding: 10px 20px 10px 20px;
+		font-weight: bold;
+		font-size: 120%;
+	}
+	#screen {
+		position: relative;
+	}
+	#editor {
+		position: absolute;
+		top: 260px;
+		left: 100px;
+	}
+	#variable {
+		position: absolute;
+		top: 260px;
+		left: 550px;
+	}
+	#console {
+		position: absolute;
+		top: 510px;
+		left: 300px;
+	}
+	-->
+	</style>
+</head>
+<body>
+<h1>PG0 - チュートリアル</h1>
+<h2>はじめに</h2>
+<div>プログラミング学習を目的としたプログラミング言語です。</div>
+<br />
+<div>プログラミングに最低限必要となる基本構造(順次、分岐、反復)の理解を目的としています。</div>
+<div>そのため非常に割り切った言語仕様となっています。</div>
+<div>分岐や反復の方式は一種類ずつとし、扱える型は整数のみとしています。</div>
+
+<h2>PG0の使い方</h2>
+<div>PG0の実行画面</div>
+<div id="screen">
+	<img src="image/screen.png" />
+	<div id="editor" class="balloon">エディタ</div>
+	<div id="variable" class="balloon">変数</div>
+	<div id="console" class="balloon">コンソール</div>
+</div>
+<h3>エディタ</h3>
+<div>プログラムを書く部分となります。</div>
+<div>プログラム実行中は実行している行が水色になります。</div>
+<div>プログラム実行中は編集することはできません。</div>
+
+<h3>変数</h3>
+<div>プログラム実行中の変数と変数の中の値を表示します。</div>
+<div>実行している行により変更された値は赤くなります。</div>
+<div>配列の場合は配列の中身を開閉することができます。</div>
+
+<h3>コンソール</h3>
+<div>実行に関する情報（実行、停止、終了）を表示します。</div>
+<div>exitで変数を指定した場合はコンソールに実行結果として内容が表示されます。</div>
+<div>プログラムにエラーがある場合はコンソールに赤字で表示されます。</div>
+
+<h3>実行</h3>
+<div>エディタに書かれたプログラムを一行ずつ自動実行します。</div>
+
+<h3>ステップ実行</h3>
+<div>エディタに書かれたプログラムをステップ実行します。</div>
+<div>再度ステップ実行を選択すると次の行を実行します。</div>
+<div>この機能を使うと手動でプログラムを一行ずつ実行することができます。</div>
+
+<h3>カーソル行まで実行</h3>
+<div>エディタのカーソルがある行までプログラムを実行します。</div>
+
+<h3>停止</h3>
+<div>実行中のプログラムを停止します。停止したプログラムの再開はできません。</div>
+<div>実行中のプログラムを一時停止したい場合は、ステップ実行を選択してください。</div>
+
+<h3>実行速度</h3>
+<div>プログラムを一行ずつ自動実行するときの速度を選択します。</div>
+<div> <ul>
+	<li>速い</li>
+	<li>普通</li>
+	<li>遅い</li>
+</ul></div>
+
+<h2>変数</h2>
+<div>変数は数値を代入するための入れ物です。</div>
+<div>変数には = を使用して数値、変数、計算結果を入れます。</div>
+<pre>
+a = 10</span> <span class="comment"><span class="notranslate">//</span>変数aに10を代入</span>
+</pre>
+<div>変数は使うときに用意されますが、var を使って変数を明示的に用意することもできます。</div>
+<pre>
+<span class="notranslate"><span class="keyword">var</span> i, j = 100</span> <span class="comment"><span class="notranslate">//</span>「,」で複数指定可能</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<div><img src="image/sc_var.png" /></div>
+
+<h2>配列</h2>
+<div>配列は変数を連続的に並べた入れ物です。</div>
+<div>配列を扱うには変数の後に[]を指定します。</div>
+<pre>
+<span class="notranslate">a[0] = 100</span> <span class="comment"><span class="notranslate">//</span>先頭</span>
+<span class="notranslate">a[1] = 200</span> <span class="comment"><span class="notranslate">//</span>2番目</span>
+<span class="notranslate">i = 5</span>
+<span class="notranslate">b[i] = 10</span> <span class="comment"><span class="notranslate">//</span>インデックスに変数を指定</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<div><img src="image/sc_array_1.png" /></div>
+<br />
+<div>配列の初期化を行うには {値1,値2,値3,...} を代入します。</div>
+<pre>
+<span class="notranslate">a[] = {1,2,3}</span> <span class="comment"><span class="notranslate">//</span>a[0] = 1;a[1] = 2;a[2] = 3; と同じ意味</span>
+<span class="notranslate">b[] = {1,2,{10,20,{100,200,300}},3}</span> <span class="comment"><span class="notranslate">//</span>多次元の初期化</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<div><img src="image/sc_array_2.png" /></div>
+
+<h2>基本構造</h2>
+<h3>順次</h3>
+<div>一つの文は一行で記述します。</div>
+<div>文は上から順番に実行されます。</div>
+<div>文では変数や数値の計算や、変数への代入を行います。</div>
+<p><table>
+	<tr><th>計算式</th><th>説明</th></tr>
+	<tr><td><span class="notranslate">c = a + b</span></td><td>a と b の合計を c に代入</td></tr>
+	<tr><td><span class="notranslate">c = a - b</span></td><td>a から b を引いた残りを c に代入</td></tr>
+	<tr><td><span class="notranslate">c = a * b</span></td><td>a と b の積を c に代入</td></tr>
+	<tr><td><span class="notranslate">c = a / b</span></td><td>a と b の商を c に代入</td></tr>
+	<tr><td><span class="notranslate">c = a % b</span></td><td>a を b で割った余りを c に代入</td></tr>
+</table></p>
+<pre>
+<span class="notranslate">a = 1</span> <span class="comment"><span class="notranslate">//</span>1番目に実行、変数aに1を代入</span>
+<span class="notranslate">b = a + 2</span> <span class="comment"><span class="notranslate">//</span>2番目に実行、変数bにa + 2の結果である3を代入</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<div><img src="image/sc_sequence.png" /></div>
+
+<div>ブロックは {～} で括って複数の文をまとめて一つの文として扱う事ができます。</div>
+<pre>
+<span class="notranslate">{</span>
+	<span class="notranslate">a = 1</span>
+	<span class="notranslate">b = a + 2</span>
+<span class="notranslate">}</span>
+</pre>
+<div>ブロックの中で用意された変数はブロックを抜ける時に解放されます。</div>
+<pre>
+<span class="notranslate">{</span>
+	<span class="notranslate"><span class="keyword">var</span> a = 1</span>
+<span class="notranslate">}</span>
+<span class="notranslate">b = a</span>	<span class="comment"><span class="notranslate">//</span>ブロック内のaは解放されているため、bには0が入る</span>
+</pre>
+<div>解放されないようにするにはブロックの外で変数を用意します。</div>
+<pre>
+<span class="notranslate"><span class="keyword">var</span> a</span>
+<span class="notranslate">{</span>
+	<span class="notranslate">a = 1</span>
+<span class="notranslate">}</span>
+<span class="notranslate">b = a</span>	<span class="comment"><span class="notranslate">//</span>aはブロックの外で用意されているため、bには1が入る</span>
+</pre>
+
+<h3>分岐</h3>
+<h4><span class="notranslate">if</span></h4>
+<div><span class="notranslate">if</span>文は条件により文の実行を制御します。</div>
+<pre>
+<span class="keyword notranslate">if</span> (式) <span class="notranslate">{</span>
+	文
+<span class="notranslate">}</span>
+</pre>
+<div>式の条件が一致する場合に文を実行し、一致しない場合は文を実行しません。</div>
+<div>式では変数や数値を比較します。</div>
+<p><table>
+	<tr><th>式</th><th>説明</th></tr>
+	<tr><td><span class="notranslate">a == b</span></td><td>a と b が等しい時に一致</td></tr>
+	<tr><td><span class="notranslate">a != b</span></td><td>a と b が等しくない場合に一致</td></tr>
+	<tr><td><span class="notranslate">a &lt; b</span></td><td><span class="notranslate">a が b より小さい時に一致</td></tr>
+	<tr><td><span class="notranslate">a &gt; b</span></td><td>a が b より大きい時に一致</td></tr>
+	<tr><td><span class="notranslate">a &lt;= b</span></td><td>a が b より小さいか等しい時に一致</td></tr>
+	<tr><td><span class="notranslate">a &gt;= b</span></td><td>a が b より大きいか等しい時に一致</td></tr>
+	<tr><td><span class="notranslate">a &amp;&amp; b</span></td><td>a と b の両方が一致している時に一致</td></tr>
+	<tr><td><span class="notranslate">a || b</span></td><td>a か b のどちらかが一致している時に一致</td></tr>
+</table></p>
+<pre>
+<span class="notranslate">a = 2</span>
+<span class="notranslate">b = 1</span>
+<span class="notranslate"><span class="keyword">if</span> (a > b) {</span>
+	<span class="notranslate">b = a</span> <span class="comment"><span class="notranslate">//</span>aがbより大きい時に実行</span>
+<span class="notranslate">}</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<div><img src="image/sc_if_1.png" /></div>
+
+<h4><span class="notranslate">else</span></h4>
+<div><span class="notranslate">if</span>文で条件が一致しない場合の文を指定します。</div>
+<div><span class="notranslate">if</span>文で文が実行された場合は<span class="notranslate">else</span>文に続く文は実行されません。</div>
+<pre>
+<span class="notranslate">a = 1</span>
+<span class="notranslate">b = 2</span>
+<span class="notranslate"><span class="keyword">if</span> (a > b) {</span>
+	<span class="notranslate">b = a</span>  <span class="comment"><span class="notranslate">//</span>aがbより大きい時に実行</span>
+<span class="notranslate">} <span class="keyword">else</span> {</span>
+	<span class="notranslate">a = b</span>  <span class="comment"><span class="notranslate">//</span>aがbより小さいか等しい時に実行</span>
+<span class="notranslate">}</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<div><img src="image/sc_if_2.png" /></div>
+
+<h3>反復</h3>
+<h4><span class="notranslate">while</span></h4>
+<div><span class="notranslate">while</span>文は式によりループを行います。</div>
+<pre>
+<span class="keyword notranslate">while</span> (式) <span class="notranslate">{</span>
+	文
+<span class="notranslate">}</span>
+</pre>
+<div>式の結果が一致する間、文を実行し続けます。</div>
+<pre>
+i = 1
+<span class="keyword notranslate">while</span> <span class="notranslate">(i <= 10) {</span> <span class="comment"><span class="notranslate">//</span>1から10までループ</span>
+	<span class="notranslate">i = i + 1</span>
+}
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<div><img src="image/sc_while.png" /></div>
+
+<h2>その他</h2>
+<div>実行中のプログラムを終了する場合は <span class="notranslate">exit</span> を書きます。</div>
+<pre>
+<span class="keyword notranslate">exit</span>
+</pre>
+<div><span class="notranslate">exit</span> には変数を設定でき、設定した変数の内容は実行結果としてコンソールに表示されます。</div>
+<pre>
+<span class="notranslate">i = 100</span>
+<span class="notranslate"><span class="keyword">exit</span> i</span>
+</pre>
+<div>上記をエディタに入力して実行した結果は以下になります。</div>
+<div><img src="image/sc_exit.png" /></div>
+<br />
+<div>「<a href="pg0.txt">pg0.txt</a>」にPG0の言語仕様について記載してあります。</div>
+<br />
+<div>「<a href="pg0.5.txt">pg0.5.txt</a>」にPG0.5の言語仕様について記載してあります。</div>
+<div>PG0.5はPG0を拡張して通常のプログラミング言語と同等の機能を持ったプログラミング言語です。</div>
+<div>実行画面のメニューで「PG0.5」を選択するとPG0.5のモードでプログラムを実行します。</div>
+
+<h2>サンプル</h2>
+<div>PG0用のサンプルプログラムです。PG0で実行する事ができます。</div>
+<h3>1_var.pg0</h3>
+<div>変数を使ったサンプルです。</div>
+<pre>
+<span class="notranslate">a = 1</span>
+<span class="notranslate">b = 2</span>
+<span class="notranslate">c = a + b</span>
+<span class="notranslate"><span class="keyword">exit</span> c</span>
+</pre>
+
+<h3>2_array.pg0</h3>
+<div>配列を使ったサンプルです。</div>
+<pre>
+<span class="notranslate">a[] = {1,2,3}</span>
+<span class="notranslate">a[3] = 4</span>
+<span class="notranslate">b[] = {5,6,7}</span>
+<span class="notranslate">c[] = a + b</span>
+<span class="notranslate"><span class="keyword">exit</span> c</span>
+</pre>
+
+<h3>3_if.pg0</h3>
+<div>if文を使ってうるう年を判定するサンプルです。</div>
+<pre>
+<span class="comment"><span class="notranslate">//</span> うるう年判定</span>
+<span class="notranslate"><span class="keyword">var</span> year = 2018</span>
+<span class="notranslate"><span class="keyword">var</span> leapYear</span>
+<span class="notranslate"><span class="keyword">if</span> (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)) {</span>
+	<span class="comment"><span class="notranslate">//</span> うるう年</span>
+	<span class="notranslate">leapYear = 1</span>
+<span class="notranslate">} <span class="keyword">else</span> {</span>
+	<span class="notranslate">leapYear = 0</span>
+<span class="notranslate">}</span>
+<span class="notranslate"><span class="keyword">exit</span> leapYear</span>
+</pre>
+
+<h3>4_while.pg0</h3>
+<div>while文を使って1から10までの足し算をするサンプルです。</div>
+<pre>
+<span class="comment"><span class="notranslate">//</span> 1から10までの足し算</span>
+<span class="notranslate">cnt = 0</span>
+<span class="notranslate">i = 1</span>
+<span class="notranslate"><span class="keyword">while</span> (i <= 10) {</span>
+	<span class="notranslate">cnt = cnt + i</span>
+	<span class="notranslate">i = i + 1</span>
+<span class="notranslate">}</span>
+<span class="notranslate"><span class="keyword">exit</span> cnt</span>
+</pre>
+
+<h3>5_max.pg0</h3>
+<div>配列の中から最大の値を探すサンプルです。</div>
+<pre>
+<span class="comment"><span class="notranslate">//</span> 最大値の検索</span>
+<span class="notranslate">num[] = {3,4,56,25,47,72,2,23,25,9}</span>
+<span class="notranslate">size = 10</span>
+<span class="notranslate">max = num[0]</span>
+<span class="notranslate">i = 1</span>
+<span class="notranslate"><span class="keyword">while</span> (i < size) {</span>
+	<span class="notranslate"><span class="keyword">if</span> (max < num[i]) {</span>
+		<span class="notranslate">max = num[i]</span>
+	<span class="notranslate">}</span>
+	<span class="notranslate">i = i + 1</span>
+<span class="notranslate">}</span>
+<span class="notranslate"><span class="keyword">exit</span> max</span>
+</pre>
+
+<h3>6_sort.pg0</h3>
+<div>配列の中身を小さい順に並べ替えるサンプルです。</div>
+<pre>
+<span class="comment"><span class="notranslate">//</span> 配列のソート</span>
+<span class="notranslate">num[] = {3,4,56,25,47,72,2,23,25,9}</span>
+<span class="notranslate">size = 10</span>
+<span class="notranslate">i = 0</span>
+<span class="notranslate"><span class="keyword">while</span> (i < size - 1) {</span>
+	<span class="notranslate">j = size - 1</span>
+	<span class="notranslate"><span class="keyword">while</span> (j > i) {</span>
+		<span class="notranslate"><span class="keyword">if</span> (num[j - 1] > num[j]) {</span>
+			<span class="notranslate">tmp = num[j]</span>
+			<span class="notranslate">num[j] = num[j - 1]</span>
+			<span class="notranslate">num[j - 1] = tmp</span>
+		<span class="notranslate">}</span>
+		<span class="notranslate">j = j - 1</span>
+	<span class="notranslate">}</span>
+	<span class="notranslate">i = i + 1</span>
+<span class="notranslate">}</span>
+<span class="notranslate"><span class="keyword">exit</span> num</span>
+</pre>
+<hr />
+<div style="text-align: center;">
+	Copyright &copy; 1996-2018 by <a href="mailto:nakka@nakka.com">Ohno Tomoaki</a>. All rights reserved.
+</div>
+</body>
+</html>
