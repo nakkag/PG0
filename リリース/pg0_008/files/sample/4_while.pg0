@@ -1,8 +1,0 @@
-// 1から10までの足し算
-cnt = 0;
-i = 1;
-while (i <= 10) {
-	cnt = cnt + i;
-	i = i + 1;
-}
-exit cnt;
