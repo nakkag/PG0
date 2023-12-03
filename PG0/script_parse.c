@@ -618,9 +618,12 @@ static BOOL GetToken(PARSEINFO *pi)
 			for (pi->r += 2; (*pi->r >= TEXT('0') && *pi->r <= TEXT('9')) ||
 				(*pi->r >= TEXT('A') && *pi->r <= TEXT('F')) ||
 				(*pi->r >= TEXT('a') && *pi->r <= TEXT('f')); pi->r++);
-		} else if (pi->extension == TRUE && *pi->p == TEXT('0') && *(pi->p + 1) != TEXT('.')) {
+		} else if (pi->extension == TRUE && *pi->p == TEXT('0') && *pi->p != TEXT('.') && *(pi->p + 1) != TEXT('.')) {
 			for (pi->r++; *pi->r >= TEXT('0') && *pi->r <= TEXT('9'); pi->r++);
 		} else {
+			if (pi->extension == TRUE && *pi->r == TEXT('.')) {
+				pi->type = SYM_CONST_FLOAT;
+			}
 			for (pi->r++; (*pi->r >= TEXT('0') && *pi->r <= TEXT('9')) || *pi->r == TEXT('.'); pi->r++) {
 				if (pi->extension == TRUE && *pi->r == TEXT('.')) {
 					if (pi->type == SYM_CONST_FLOAT) {
