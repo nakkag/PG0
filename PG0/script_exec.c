@@ -1949,6 +1949,7 @@ static TOKEN *ExpandArgument(EXECINFO *ei, TOKEN *tk, VALUEINFO *param)
 static VALUEINFO *ExecNameFunction(EXECINFO *ei, FUNCINFO *fi, VALUEINFO *param)
 {
 	EXECINFO cei;
+	EXECINFO* top;
 	VALUEINFO *vret = NULL;
 	TOKEN *tk;
 	int ret;
@@ -1956,7 +1957,8 @@ static VALUEINFO *ExecNameFunction(EXECINFO *ei, FUNCINFO *fi, VALUEINFO *param)
 	ZeroMemory(&cei, sizeof(EXECINFO));
 	cei.name = fi->name;
 	cei.sci = ei->sci;
-	cei.parent = ei;
+	for (top = ei; top->parent != NULL; top = top->parent);
+	cei.parent = top;
 
 	//ˆø”‚Ì“WŠJ
 	tk = ExpandArgument(&cei, fi->tk->next, param);
