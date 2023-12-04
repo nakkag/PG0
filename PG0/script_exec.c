@@ -1072,8 +1072,12 @@ static VALUEINFO *ArrayCalcValue(EXECINFO *ei, VALUEINFO *v1, VALUEINFO *v2, int
 			vret->v->type = TYPE_ARRAY;
 			if (v2->v->type == TYPE_ARRAY) {
 				//˜AŒ‹
-				for (vi = vret->v->u.array; vi->next != NULL; vi = vi->next);
-				vi->next = CopyValueList(v2->v->u.array);
+				if (vret->v->u.array == NULL) {
+					vret->v->u.array = CopyValueList(v2->v->u.array);
+				} else {
+					for (vi = vret->v->u.array; vi->next != NULL; vi = vi->next);
+					vi->next = CopyValueList(v2->v->u.array);
+				}
 			}
 		} else {
 			vret->v->u.array = CopyValueList(v2->v->u.array);
