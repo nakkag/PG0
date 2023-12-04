@@ -1091,6 +1091,9 @@ static VALUEINFO *ArrayCalcValue(EXECINFO *ei, VALUEINFO *v1, VALUEINFO *v2, int
 		if (v1->v->type == TYPE_ARRAY && v2->v->type == TYPE_ARRAY) {
 			for (v1 = v1->v->u.array, v2 = v2->v->u.array; v1 != NULL && v2 != NULL; v1 = v1->next, v2 = v2->next) {
 				BOOL cp;
+				if (v1->name_hash != v2->name_hash || lstrcmp(v1->name, v2->name) != 0) {
+					break;
+				}
 				vi = CalcValue(ei, v1, v2, SYM_EQEQ);
 				cp = GetValueBoolean(vi->v);
 				FreeValue(vi);
