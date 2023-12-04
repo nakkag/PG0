@@ -505,5 +505,5 @@ setKey(&list[], n, key)
 
 --
 Copyright (C) 1996-2023 by Ohno Tomoaki. All rights reserved.
-    WEB SITE: https://www.nakka.com/
+    WEB SITE: https://nakka.com/
     E-MAIL: nakka@nakka.com
