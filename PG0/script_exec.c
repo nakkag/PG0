@@ -400,6 +400,11 @@ static VALUEINFO *IndexToArray(EXECINFO *ei, VALUEINFO *pvi, int index)
 			return NULL;
 		}
 		i = 1;
+	}
+	else if (vi->v->u.array == NULL) {
+		vi->v->u.array = AllocValue();
+		vi = vi->v->u.array;
+		i++;
 	} else {
 		VALUEINFO *tmpvi = NULL;
 		//位置検索
@@ -1205,10 +1210,6 @@ int ExecSentense(EXECINFO *ei, TOKEN *cu_tk, VALUEINFO **retvi, VALUEINFO **rets
 			if (RetSt == RET_BREAK || RetSt == RET_CONTINUE) {
 				ei->err = cei.err;
 			}
-			if (vi == NULL) {
-				FreeExecInfo(&cei);
-				break;
-			}
 			//実行後のスタックの内容を配列に設定
 			v1 = AllocValue();
 			if (v1 == NULL) {
@@ -1218,7 +1219,9 @@ int ExecSentense(EXECINFO *ei, TOKEN *cu_tk, VALUEINFO **retvi, VALUEINFO **rets
 				FreeExecInfo(&cei);
 				break;
 			}
-			v1->v->u.array = CopyValueList(vi);
+			if (vi != NULL) {
+				v1->v->u.array = CopyValueList(vi);
+			}
 			v1->v->type = TYPE_ARRAY;
 			v1->next = stack;
 			stack = v1;

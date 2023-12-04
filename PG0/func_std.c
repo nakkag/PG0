@@ -137,7 +137,7 @@ TCHAR *ValueListToString(VALUEINFO *From)
 		}
 		len++;
 	}
-	p = ret = mem_alloc(sizeof(TCHAR) * (len + 1));
+	p = ret = mem_calloc(sizeof(TCHAR) * (len + 1));
 	if (ret == NULL) {
 		return NULL;
 	}
