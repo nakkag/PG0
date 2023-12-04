@@ -155,7 +155,7 @@ static BOOL Variable2Clipboard(const HWND hWnd, const VALUE_VIEW_INFO *vvi)
 		CloseClipboard();
 		return FALSE;
 	}
-	if((hMem = GlobalAlloc(GHND, sizeof(TCHAR) * (lstrlen(vvi->name) + 1 + lstrlen(vvi->buf) + 1))) == NULL){
+	if((hMem = GlobalAlloc(GHND, sizeof(TCHAR) * (lstrlen(vvi->name) + 3 + lstrlen(vvi->buf) + 1))) == NULL){
 		CloseClipboard();
 		return FALSE;
 	}
@@ -164,7 +164,7 @@ static BOOL Variable2Clipboard(const HWND hWnd, const VALUE_VIEW_INFO *vvi)
 		CloseClipboard();
 		return FALSE;
 	}
-	wsprintf(buf, TEXT("%s\t%s"), vvi->name, vvi->buf);
+	wsprintf(buf, TEXT("%s = %s"), vvi->name, vvi->buf);
 	GlobalUnlock(hMem);
 #ifdef UNICODE
 	SetClipboardData(CF_UNICODETEXT, hMem);
@@ -1257,17 +1257,12 @@ static LRESULT CALLBACK VariableProc(HWND hWnd, UINT message, WPARAM wParam, LPA
 			int click_line = (apos.y - rect.top - bf->header_height) / bf->FontHeight + bf->pos_y;
 			VALUE_VIEW_INFO *vvi = indexToValueViewInfo(vi_list, vi_list_count, click_line);
 			if (vvi != NULL) {
-				if (vvi->vi->v->type == TYPE_ARRAY) {
-					int index = 0;
-					vvi->open = !vvi->open;
-					setValueIndex(vi_list, vi_list_count, &index, 0);
-					bf->view_line = getValueDrawCount(vi_list, vi_list_count);
-					bf->draw_width = getDrawMaxWidth(bf->mdc, bf);
-					SetScrollBar(hWnd, bf);
-				}
 				deselectValueList(vi_list, vi_list_count);
+				vvi->select = TRUE;
+				ShowSelectValueViewInfo(hWnd, bf);
 				InvalidateRect(hWnd, NULL, FALSE);
 				UpdateWindow(hWnd);
+				SendMessage(hWnd, WM_COPY, 0, 0);
 			}
 			break;
 		}

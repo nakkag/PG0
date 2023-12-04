@@ -1475,7 +1475,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					}
 				}
 				if (lang != LANG_JAPANESE) {
-					ShellExecute(NULL, TEXT("open"), TEXT("https://nakka.com/soft/pg0/tutorial.html"), NULL, NULL, SW_SHOWNORMAL);
+					ShellExecute(NULL, TEXT("open"), TEXT("https://nakka.com/soft/pg0/tutorial/"), NULL, NULL, SW_SHOWNORMAL);
 				}
 			}
 			break;

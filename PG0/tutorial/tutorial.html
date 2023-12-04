@@ -3,25 +3,42 @@
 <head>
 	<title>PG0 - チュートリアル</title>
 	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 	<style type="text/css">
 	<!--
+	body {
+		font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+		-webkit-text-size-adjust: 100%;
+	}
 	pre {
+		position: relative;
 		background-color: #f0f8ff;
 		width: 720px;
 		margin-left: 40px;
-		padding: 10px 10px 10px 30px;
 		border: 1px solid #aaa;
+		tab-size: 4;
+	}
+	code {
+		display: inline-block;
+		overflow-x: auto;
+		width: 720px;
+		margin-top: -30px;
+		padding: 10px 10px 10px 30px;
+		font-family: Menlo, Monaco, 'ＭＳ ゴシック', 'MS Gothic', 'Courier New', monospace;
 	}
 	h2 {
 		margin-left: 0px;
+		padding-left: 5px;
 		background-color: #87ceeb;
 	}
 	h3 {
 		margin-left: 10px;
+		padding-left: 5px;
 		background-color: #e0ffff;
 	}
 	h4 {
 		margin-left: 20px;
+		padding-left: 5px;
 		background-color: #f0ffff;
 	}
 	div {
@@ -46,7 +63,7 @@
 	}
 	.balloon {
 		background-color: #ffe4b5;
-		padding: 10px 20px 10px 20px;
+		padding: 10px 20px;
 		font-weight: bold;
 		font-size: 120%;
 	}
@@ -67,6 +84,26 @@
 		position: absolute;
 		top: 510px;
 		left: 300px;
+	}
+	.copy {
+		display: none;
+		position: absolute;
+		top: 2px;
+		right: 2px;
+		outline: 0px;
+		border: 0px;
+		background-color: #f0f8ff;
+		font-size: 120%;
+		padding: 0;
+		cursor: pointer;
+	}
+	pre:hover .copy,
+	pre:focus .copy,
+	pre:active .copy {
+		display: block;
+	}
+	pre .copied {
+		display: block;
 	}
 	-->
 	</style>
@@ -130,12 +167,16 @@
 <h2>変数</h2>
 <div>変数は数値を代入するための入れ物です。</div>
 <div>変数には = を使用して数値、変数、計算結果を入れます。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 a = 10</span> <span class="comment"><span class="notranslate">//</span>変数aに10を代入</span>
+</code>
 </pre>
 <div>変数は使うときに用意されますが、var を使って変数を明示的に用意することもできます。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="notranslate"><span class="keyword">var</span> i, j = 100</span> <span class="comment"><span class="notranslate">//</span>「,」で複数指定可能</span>
+</code>
 </pre>
 <div>上記をエディタに入力して実行した結果は以下になります。</div>
 <div><img src="image/sc_var.png" /></div>
@@ -143,19 +184,23 @@ a = 10</span> <span class="comment"><span class="notranslate">//</span>変数a�
 <h2>配列</h2>
 <div>配列は変数を連続的に並べた入れ物です。</div>
 <div>配列を扱うには変数の後に[]を指定します。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="notranslate">a[0] = 100</span> <span class="comment"><span class="notranslate">//</span>先頭</span>
 <span class="notranslate">a[1] = 200</span> <span class="comment"><span class="notranslate">//</span>2番目</span>
 <span class="notranslate">i = 5</span>
 <span class="notranslate">b[i] = 10</span> <span class="comment"><span class="notranslate">//</span>インデックスに変数を指定</span>
+</code>
 </pre>
 <div>上記をエディタに入力して実行した結果は以下になります。</div>
 <div><img src="image/sc_array_1.png" /></div>
 <br />
 <div>配列の初期化を行うには {値1,値2,値3,...} を代入します。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="notranslate">a[] = {1,2,3}</span> <span class="comment"><span class="notranslate">//</span>a[0] = 1;a[1] = 2;a[2] = 3; と同じ意味</span>
 <span class="notranslate">b[] = {1,2,{10,20,{100,200,300}},3}</span> <span class="comment"><span class="notranslate">//</span>多次元の初期化</span>
+</code>
 </pre>
 <div>上記をエディタに入力して実行した結果は以下になります。</div>
 <div><img src="image/sc_array_2.png" /></div>
@@ -173,43 +218,53 @@ a = 10</span> <span class="comment"><span class="notranslate">//</span>変数a�
 	<tr><td><span class="notranslate">c = a / b</span></td><td>a と b の商を c に代入</td></tr>
 	<tr><td><span class="notranslate">c = a % b</span></td><td>a を b で割った余りを c に代入</td></tr>
 </table></p>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="notranslate">a = 1</span> <span class="comment"><span class="notranslate">//</span>1番目に実行、変数aに1を代入</span>
 <span class="notranslate">b = a + 2</span> <span class="comment"><span class="notranslate">//</span>2番目に実行、変数bにa + 2の結果である3を代入</span>
+</code>
 </pre>
 <div>上記をエディタに入力して実行した結果は以下になります。</div>
 <div><img src="image/sc_sequence.png" /></div>
 
 <div>ブロックは {～} で括って複数の文をまとめて一つの文として扱う事ができます。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="notranslate">{</span>
 	<span class="notranslate">a = 1</span>
 	<span class="notranslate">b = a + 2</span>
 <span class="notranslate">}</span>
+</code>
 </pre>
 <div>ブロックの中で用意された変数はブロックを抜ける時に解放されます。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="notranslate">{</span>
 	<span class="notranslate"><span class="keyword">var</span> a = 1</span>
 <span class="notranslate">}</span>
 <span class="notranslate">b = a</span>	<span class="comment"><span class="notranslate">//</span>ブロック内のaは解放されているため、bには0が入る</span>
+</code>
 </pre>
 <div>解放されないようにするにはブロックの外で変数を用意します。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="notranslate"><span class="keyword">var</span> a</span>
 <span class="notranslate">{</span>
 	<span class="notranslate">a = 1</span>
 <span class="notranslate">}</span>
 <span class="notranslate">b = a</span>	<span class="comment"><span class="notranslate">//</span>aはブロックの外で用意されているため、bには1が入る</span>
+</code>
 </pre>
 
 <h3>分岐</h3>
 <h4><span class="notranslate">if</span></h4>
 <div><span class="notranslate">if</span>文は条件により文の実行を制御します。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="keyword notranslate">if</span> (式) <span class="notranslate">{</span>
 	文
 <span class="notranslate">}</span>
+</code>
 </pre>
 <div>式の条件が一致する場合に文を実行し、一致しない場合は文を実行しません。</div>
 <div>式では変数や数値を比較します。</div>
@@ -224,12 +279,14 @@ a = 10</span> <span class="comment"><span class="notranslate">//</span>変数a�
 	<tr><td><span class="notranslate">a &amp;&amp; b</span></td><td>a と b の両方が一致している時に一致</td></tr>
 	<tr><td><span class="notranslate">a || b</span></td><td>a か b のどちらかが一致している時に一致</td></tr>
 </table></p>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="notranslate">a = 2</span>
 <span class="notranslate">b = 1</span>
 <span class="notranslate"><span class="keyword">if</span> (a > b) {</span>
 	<span class="notranslate">b = a</span> <span class="comment"><span class="notranslate">//</span>aがbより大きい時に実行</span>
 <span class="notranslate">}</span>
+</code>
 </pre>
 <div>上記をエディタに入力して実行した結果は以下になります。</div>
 <div><img src="image/sc_if_1.png" /></div>
@@ -237,7 +294,8 @@ a = 10</span> <span class="comment"><span class="notranslate">//</span>変数a�
 <h4><span class="notranslate">else</span></h4>
 <div><span class="notranslate">if</span>文で条件が一致しない場合の文を指定します。</div>
 <div><span class="notranslate">if</span>文で文が実行された場合は<span class="notranslate">else</span>文に続く文は実行されません。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="notranslate">a = 1</span>
 <span class="notranslate">b = 2</span>
 <span class="notranslate"><span class="keyword">if</span> (a > b) {</span>
@@ -245,6 +303,7 @@ a = 10</span> <span class="comment"><span class="notranslate">//</span>変数a�
 <span class="notranslate">} <span class="keyword">else</span> {</span>
 	<span class="notranslate">a = b</span>  <span class="comment"><span class="notranslate">//</span>aがbより小さいか等しい時に実行</span>
 <span class="notranslate">}</span>
+</code>
 </pre>
 <div>上記をエディタに入力して実行した結果は以下になります。</div>
 <div><img src="image/sc_if_2.png" /></div>
@@ -252,30 +311,38 @@ a = 10</span> <span class="comment"><span class="notranslate">//</span>変数a�
 <h3>反復</h3>
 <h4><span class="notranslate">while</span></h4>
 <div><span class="notranslate">while</span>文は式によりループを行います。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="keyword notranslate">while</span> (式) <span class="notranslate">{</span>
 	文
 <span class="notranslate">}</span>
+</code>
 </pre>
 <div>式の結果が一致する間、文を実行し続けます。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 i = 1
 <span class="keyword notranslate">while</span> <span class="notranslate">(i <= 10) {</span> <span class="comment"><span class="notranslate">//</span>1から10までループ</span>
 	<span class="notranslate">i = i + 1</span>
 }
+</code>
 </pre>
 <div>上記をエディタに入力して実行した結果は以下になります。</div>
 <div><img src="image/sc_while.png" /></div>
 
 <h2>その他</h2>
 <div>実行中のプログラムを終了する場合は <span class="notranslate">exit</span> を書きます。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="keyword notranslate">exit</span>
+</code>
 </pre>
 <div><span class="notranslate">exit</span> には変数を設定でき、設定した変数の内容は実行結果としてコンソールに表示されます。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="notranslate">i = 100</span>
 <span class="notranslate"><span class="keyword">exit</span> i</span>
+</code>
 </pre>
 <div>上記をエディタに入力して実行した結果は以下になります。</div>
 <div><img src="image/sc_exit.png" /></div>
@@ -293,41 +360,49 @@ i = 1
 <div>PG0用のサンプルプログラムです。PG0で実行する事ができます。</div>
 <h3>1_var.pg0</h3>
 <div>変数を使ったサンプルです。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="notranslate">a = 1</span>
 <span class="notranslate">b = 2</span>
 <span class="notranslate">c = a + b</span>
 <span class="notranslate"><span class="keyword">exit</span> c</span>
+</code>
 </pre>
 
 <h3>2_array.pg0</h3>
 <div>配列を使ったサンプルです。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="notranslate">a[] = {1,2,3}</span>
 <span class="notranslate">a[3] = 4</span>
 <span class="notranslate">b[] = {5,6,7}</span>
 <span class="notranslate">c[] = a + b</span>
 <span class="notranslate"><span class="keyword">exit</span> c</span>
+</code>
 </pre>
 
 <h3>3_if.pg0</h3>
 <div>if文を使ってうるう年を判定するサンプルです。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="comment"><span class="notranslate">//</span> うるう年判定</span>
 <span class="notranslate"><span class="keyword">var</span> year = 2018</span>
 <span class="notranslate"><span class="keyword">var</span> leapYear</span>
-<span class="notranslate"><span class="keyword">if</span> (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)) {</span>
+<span class="notranslate"><span class="keyword">if</span> (year % 400 == 0 ||</span>
+	<span class="notranslate">(year % 4 == 0 && year % 100 != 0)) {</span>
 	<span class="comment"><span class="notranslate">//</span> うるう年</span>
 	<span class="notranslate">leapYear = 1</span>
 <span class="notranslate">} <span class="keyword">else</span> {</span>
 	<span class="notranslate">leapYear = 0</span>
 <span class="notranslate">}</span>
 <span class="notranslate"><span class="keyword">exit</span> leapYear</span>
+</code>
 </pre>
 
 <h3>4_while.pg0</h3>
 <div>while文を使って1から10までの足し算をするサンプルです。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="comment"><span class="notranslate">//</span> 1から10までの足し算</span>
 <span class="notranslate">cnt = 0</span>
 <span class="notranslate">i = 1</span>
@@ -336,11 +411,13 @@ i = 1
 	<span class="notranslate">i = i + 1</span>
 <span class="notranslate">}</span>
 <span class="notranslate"><span class="keyword">exit</span> cnt</span>
+</code>
 </pre>
 
 <h3>5_max.pg0</h3>
 <div>配列の中から最大の値を探すサンプルです。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="comment"><span class="notranslate">//</span> 最大値の検索</span>
 <span class="notranslate">num[] = {3,4,56,25,47,72,2,23,25,9}</span>
 <span class="notranslate">size = 10</span>
@@ -353,11 +430,13 @@ i = 1
 	<span class="notranslate">i = i + 1</span>
 <span class="notranslate">}</span>
 <span class="notranslate"><span class="keyword">exit</span> max</span>
+</code>
 </pre>
 
 <h3>6_sort.pg0</h3>
 <div>配列の中身を小さい順に並べ替えるサンプルです。</div>
-<pre>
+<pre><input type="button" class="copy" value="📋"></input>
+<code>
 <span class="comment"><span class="notranslate">//</span> 配列のソート</span>
 <span class="notranslate">num[] = {3,4,56,25,47,72,2,23,25,9}</span>
 <span class="notranslate">size = 10</span>
@@ -375,10 +454,46 @@ i = 1
 	<span class="notranslate">i = i + 1</span>
 <span class="notranslate">}</span>
 <span class="notranslate"><span class="keyword">exit</span> num</span>
+</code>
 </pre>
 <hr />
-<div style="text-align: center;">
+<div style="text-align: center;padding-top: 20px;padding-bottom: 20px;">
 	Copyright &copy; 1996-2023 by <a href="mailto:nakka@nakka.com">Ohno Tomoaki</a>. All rights reserved.
 </div>
+
+<script type="text/javascript">
+document.querySelector('body').addEventListener("click", function(e) {
+	if (e.target.classList.contains('copy')) {
+		copyToClipboard(e.target.nextElementSibling, e.target);
+	}
+});
+function copyToClipboard(textNode, buttonNode) {
+	if (navigator.clipboard) {
+		return navigator.clipboard.writeText(textNode.textContent.trim()).then(function () {
+			message(buttonNode)
+		})
+	} else {
+		const selection = window.getSelection();
+		if (!selection.rangeCount) {
+			return;
+		}
+		const range = document.createRange();
+		range.selectNodeContents(textNode);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		document.execCommand('copy')
+		selection.removeAllRanges();
+		message(buttonNode)
+	}
+}
+function message(buttonNode) {
+	buttonNode.value = 'コピーしました';
+	buttonNode.classList.add('copied');
+	setTimeout(function() {
+		buttonNode.value = '📋';
+		buttonNode.classList.remove('copied');
+	}, 1000)
+}
+</script>
 </body>
 </html>
