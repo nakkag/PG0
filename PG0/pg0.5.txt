@@ -492,7 +492,7 @@ getKey(list[], n)
 	[戻り値]
 		キー名(文字列)
 
-setKey(&list[], n, key)
+setKey(list[], n, key)
 	[説明]
 		配列のキー名を設定
 		list[] の3番目のキーは setKey(list[], 3, "name")
@@ -504,6 +504,6 @@ setKey(&list[], n, key)
 		0
 
 --
-Copyright (C) 1996-2023 by Ohno Tomoaki. All rights reserved.
+Copyright (C) 1996-2024 by Ohno Tomoaki. All rights reserved.
     WEB SITE: https://nakka.com/
     E-MAIL: nakka@nakka.com

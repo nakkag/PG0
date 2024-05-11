@@ -187,6 +187,6 @@ exit には戻り値を設定できます。
 	exit i
 
 --
-Copyright (C) 1996-2023 by Ohno Tomoaki. All rights reserved.
+Copyright (C) 1996-2024 by Ohno Tomoaki. All rights reserved.
     WEB SITE: https://nakka.com/
     E-MAIL: nakka@nakka.com
