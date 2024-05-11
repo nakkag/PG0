@@ -92,7 +92,7 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "すべて選択(&A)\tCtrl+A",           ID_MENUITEM_SELECT_ALL
     END
-    POPUP "実行(&E)"
+    POPUP "実行(&X)"
     BEGIN
         MENUITEM "実行(&E)\tF5",                  ID_MENUITEM_EXEC
         MENUITEM "ステップ実行(&T)\tF10",             ID_MENUITEM_STEP
@@ -294,7 +294,7 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "Select &All\tCtrl+A",         ID_MENUITEM_SELECT_ALL
     END
-    POPUP "&Exec"
+    POPUP "E&xec"
     BEGIN
         MENUITEM "&Exec\tF5",                   ID_MENUITEM_EXEC
         MENUITEM "S&tep exec\tF10",             ID_MENUITEM_STEP
