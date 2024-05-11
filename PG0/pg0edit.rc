@@ -108,7 +108,7 @@ BEGIN
             MENUITEM "遅い(&L)",                      ID_MENUITEM_SPEED_LOW
         END
         MENUITEM SEPARATOR
-        MENUITEM "実行結果のクリア(&C)",                ID_MENUITEM_CLEAR
+        MENUITEM "実行結果のクリア(&C)\tCtrl+Del",      ID_MENUITEM_CLEAR
     END
     POPUP "ヘルプ(&H)"
     BEGIN
@@ -128,6 +128,7 @@ IDR_ACCELERATOR ACCELERATORS
 BEGIN
     VK_F5,          ID_MENUITEM_EXEC,       VIRTKEY, NOINVERT
     "F",            ID_MENUITEM_FIND,       VIRTKEY, CONTROL, NOINVERT
+    VK_F3,          ID_MENUITEM_FINDNEXT,   VIRTKEY, NOINVERT
     "N",            ID_MENUITEM_NEW,        VIRTKEY, CONTROL, NOINVERT
     "O",            ID_MENUITEM_OPEN,       VIRTKEY, CONTROL, NOINVERT
     VK_F10,         ID_MENUITEM_RUN_TO_CURSOR, VIRTKEY, CONTROL, NOINVERT
@@ -135,7 +136,7 @@ BEGIN
     "A",            ID_MENUITEM_SELECT_ALL, VIRTKEY, CONTROL, NOINVERT
     VK_F10,         ID_MENUITEM_STEP,       VIRTKEY, NOINVERT
     VK_F5,          ID_MENUITEM_STOP,       VIRTKEY, SHIFT, NOINVERT
-    VK_F3,          ID_MENUITEM_FINDNEXT,   VIRTKEY, NOINVERT
+    VK_DELETE,      ID_MENUITEM_CLEAR,      VIRTKEY, CONTROL, NOINVERT
 END
 
 
@@ -184,8 +185,8 @@ IDR_TOOLBAR_96          BITMAP                  "toolbar96.bmp"
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,3,6,0
- PRODUCTVERSION 0,3,6,0
+ FILEVERSION 0,3,7,0
+ PRODUCTVERSION 0,3,7,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -202,12 +203,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "*"
             VALUE "FileDescription", "PG0"
-            VALUE "FileVersion", "0.3.6.0"
+            VALUE "FileVersion", "0.3.7.0"
             VALUE "InternalName", "PG0"
-            VALUE "LegalCopyright", "Copyright (C) 1996-2023 by Ohno Tomoaki. All rights reserved."
+            VALUE "LegalCopyright", "Copyright (C) 1996-2024 by Ohno Tomoaki. All rights reserved."
             VALUE "OriginalFilename", "pg0.exe"
             VALUE "ProductName", "PG0"
-            VALUE "ProductVersion", "0.3.6.0"
+            VALUE "ProductVersion", "0.3.7.0"
         END
     END
     BLOCK "VarFileInfo"
@@ -310,7 +311,7 @@ BEGIN
             MENUITEM "&Slow",                       ID_MENUITEM_SPEED_LOW
         END
         MENUITEM SEPARATOR
-        MENUITEM "&Clear console",              ID_MENUITEM_CLEAR
+        MENUITEM "&Clear console\tCtrl+Del",    ID_MENUITEM_CLEAR
     END
     POPUP "&Help"
     BEGIN
