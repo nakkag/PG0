@@ -1746,6 +1746,9 @@ static TOKEN *IfStatement(PARSEINFO *pi, TOKEN *cu_tk)
 		}
 		if (pi->extension == TRUE && pi->type == SYM_IF) {
 			cu_tk = IfStatement(pi, cu_tk);
+			if (cu_tk == NULL) {
+				return NULL;
+			}
 		} else {
 			if (pi->type != SYM_BOPEN) {
 				Error(pi->ei, ERR_BLOCK, r, NULL);

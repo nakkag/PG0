@@ -1475,7 +1475,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					}
 				}
 				if (lang != LANG_JAPANESE) {
-					ShellExecute(NULL, TEXT("open"), TEXT("https://nakka.com/soft/pg0/tutorial/"), NULL, NULL, SW_SHOWNORMAL);
+					ShellExecute(NULL, TEXT("open"), TEXT("https://nakka.com/soft/pg0/tutorial/index_eng.html"), NULL, NULL, SW_SHOWNORMAL);
 				}
 			}
 			break;
@@ -1503,7 +1503,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						mem_free(&buf);
 					}
 				}
-				lstrcat(var_msg, TEXT("\nCopyright (C) 1996-2023 by Ohno Tomoaki. All rights reserved.\n\n")
+				lstrcat(var_msg, TEXT("\nCopyright (C) 1996-2024 by Ohno Tomoaki. All rights reserved.\n\n")
 					TEXT("WEB SITE: https://nakka.com/\nE-MAIL: nakka@nakka.com"));
 				MessageBox(hWnd, var_msg, TEXT("About"), MB_OK | MB_ICONINFORMATION);
 			}

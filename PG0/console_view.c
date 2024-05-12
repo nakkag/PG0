@@ -2446,6 +2446,8 @@ static LRESULT CALLBACK ConsoleProc(HWND hWnd, UINT message, WPARAM wParam, LPAR
 			AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
 			AppendMenu(hMenu, MF_STRING, 1,
 				(lang != LANG_JAPANESE) ? TEXT("Select &All") : TEXT("すべて選択(&A)"));
+			AppendMenu(hMenu, MF_STRING, 2,
+				(lang != LANG_JAPANESE) ? TEXT("C&lear console") : TEXT("実行結果のクリア(&L)"));
 
 			// メニューの表示
 			GetCursorPos((LPPOINT)&apos);
@@ -2456,6 +2458,9 @@ static LRESULT CALLBACK ConsoleProc(HWND hWnd, UINT message, WPARAM wParam, LPAR
 				break;
 			case 1:
 				SendMessage(hWnd, EM_SETSEL, 0, -1);
+				break;
+			case 2:
+				SendMessage(hWnd, WM_SETTEXT, 0, (LPARAM)TEXT(""));
 				break;
 			default:
 				SendMessage(hWnd, i, 0, 0);
