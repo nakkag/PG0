@@ -389,7 +389,10 @@ static void writer_append(JSON_WRITER *jw, const TCHAR *str, const int len)
 		return;
 	}
 	if (jw->len + len + 1 > jw->size) {
-		int size = jw->size + len + WRITER_RESERVE;
+		int size = jw->size * 2;
+		if (size < jw->len + len + WRITER_RESERVE) {
+			size = jw->len + len + WRITER_RESERVE;
+		}
 		if ((tmp = mem_alloc(sizeof(TCHAR) * size)) == NULL) {
 			jw->error = TRUE;
 			return;
@@ -425,7 +428,13 @@ static void writer_append_string(JSON_WRITER *jw, const TCHAR *str)
 		case TEXT('\r'): lstrcpy(esc, TEXT("\\r")); break;
 		case TEXT('\t'): lstrcpy(esc, TEXT("\\t")); break;
 		default:
-			if ((unsigned int)*p >= 0x20) {
+			if ((unsigned int)*p >= 0x20 && ((unsigned int)*p < 0xD800 || (unsigned int)*p > 0xDFFF)) {
+				continue;
+			}
+			// a surrogate pair is valid UTF-16; a lone surrogate is escaped so that the UTF-8 stays valid
+			if ((unsigned int)*p >= 0xD800 && (unsigned int)*p <= 0xDBFF &&
+				(unsigned int)*(p + 1) >= 0xDC00 && (unsigned int)*(p + 1) <= 0xDFFF) {
+				p++;
 				continue;
 			}
 			wsprintf(esc, TEXT("\\u%04x"), (unsigned int)*p);
@@ -524,7 +533,10 @@ void json_add_number(JSON_WRITER *jw, const TCHAR *key, const double value)
 	TCHAR buf[64];
 
 	writer_append_key(jw, key);
-	if (floor(value) == value && fabs(value) < 1e15) {
+	if (!_finite(value)) {
+		// JSON has no NaN or infinity
+		lstrcpy(buf, TEXT("null"));
+	} else if (floor(value) == value && fabs(value) < 1e15) {
 		_stprintf_s(buf, 64, TEXT("%.0f"), value);
 	} else {
 		_stprintf_s(buf, 64, TEXT("%.17g"), value);

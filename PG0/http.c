@@ -36,9 +36,31 @@ typedef struct _HTTP_REQUEST {
 	TCHAR *url;
 	char *body;
 	LPARAM param;
+	BOOL cancelled;
+	struct _HTTP_REQUEST *next;
 } HTTP_REQUEST;
 
+// requests in flight, so that a window being destroyed can stop the results addressed to it
+static CRITICAL_SECTION cs;
+static BOOL cs_ready = FALSE;
+static HTTP_REQUEST *requests = NULL;
+
 /* Local Function Prototypes */
+
+/*
+ * unlink_request - take a request out of the list (with the lock held)
+ */
+static void unlink_request(const HTTP_REQUEST *req)
+{
+	HTTP_REQUEST **pp;
+
+	for (pp = &requests; *pp != NULL; pp = &(*pp)->next) {
+		if (*pp == req) {
+			*pp = req->next;
+			break;
+		}
+	}
+}
 
 /*
  * read_body - read the response body
@@ -123,7 +145,7 @@ static void send_request(const HTTP_REQUEST *req, HTTP_RESULT *res)
 	}
 	body_len = (req->body != NULL) ? lstrlenA(req->body) : 0;
 	if (WinHttpSendRequest(hRequest,
-		(req->body != NULL) ? L"Content-Type: application/json\r\n" : WINHTTP_NO_ADDITIONAL_HEADERS, (DWORD)-1L,
+		(req->body != NULL) ? L"Content-Type: application/json\r\n" : WINHTTP_NO_ADDITIONAL_HEADERS, (req->body != NULL) ? (DWORD)-1L : 0,
 		(req->body != NULL) ? req->body : WINHTTP_NO_REQUEST_DATA, body_len, body_len, 0) == FALSE) {
 		goto end;
 	}
@@ -184,22 +206,31 @@ static unsigned int __stdcall request_thread(void *arg)
 		if (res->status == 0) {
 			mem_free(&res->body);
 		}
-		if (PostMessage(req->hWnd, req->msg, 0, (LPARAM)res) == FALSE) {
-			http_free_result(res);
-		}
 	}
+	// posted under the lock, so that http_cancel either sees the request or finds the message in the queue
+	EnterCriticalSection(&cs);
+	unlink_request(req);
+	if (res != NULL && (req->cancelled || PostMessage(req->hWnd, req->msg, 0, (LPARAM)res) == FALSE)) {
+		http_free_result(res);
+	}
+	LeaveCriticalSection(&cs);
 	free_request(req);
 	return 0;
 }
 
 /*
  * http_request_async - send a request on a worker thread and post the HTTP_RESULT to the window
+ *                      (the first call is made on the window's thread)
  */
 BOOL http_request_async(const HWND hWnd, const UINT msg, const int id, const TCHAR *method, const TCHAR *url, const char *body, const LPARAM param)
 {
 	HTTP_REQUEST *req;
 	HANDLE hThread;
 
+	if (!cs_ready) {
+		InitializeCriticalSection(&cs);
+		cs_ready = TRUE;
+	}
 	if ((req = mem_calloc(sizeof(HTTP_REQUEST))) == NULL) {
 		return FALSE;
 	}
@@ -219,13 +250,40 @@ BOOL http_request_async(const HWND hWnd, const UINT msg, const int id, const TCH
 		free_request(req);
 		return FALSE;
 	}
+	EnterCriticalSection(&cs);
+	req->next = requests;
+	requests = req;
+	LeaveCriticalSection(&cs);
 	hThread = (HANDLE)_beginthreadex(NULL, 0, request_thread, req, 0, NULL);
 	if (hThread == NULL) {
+		EnterCriticalSection(&cs);
+		unlink_request(req);
+		LeaveCriticalSection(&cs);
 		free_request(req);
 		return FALSE;
 	}
 	CloseHandle(hThread);
 	return TRUE;
+}
+
+/*
+ * http_cancel - the results of the requests addressed to the window are no longer wanted
+ *               (results already in the queue of the window remain to be freed by the caller)
+ */
+void http_cancel(const HWND hWnd)
+{
+	HTTP_REQUEST *req;
+
+	if (!cs_ready) {
+		return;
+	}
+	EnterCriticalSection(&cs);
+	for (req = requests; req != NULL; req = req->next) {
+		if (req->hWnd == hWnd) {
+			req->cancelled = TRUE;
+		}
+	}
+	LeaveCriticalSection(&cs);
 }
 
 /*

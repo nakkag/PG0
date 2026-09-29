@@ -111,11 +111,19 @@ static const UINT tag_names[] = {
 #define TAG_OTHER						(TAG_COUNT - 1)
 static TCHAR tag_labels[TAG_COUNT][LABEL_SIZE];
 
+// a removal in flight (several scripts can be removed one after another)
+#define MAX_REMOVES						8
+typedef struct _REMOVE_REQUEST {
+	int id;
+	TCHAR cid[ONLINE_CID_SIZE];
+} REMOVE_REQUEST;
+
 // the list and history dialogs
 typedef struct _OPEN_DATA {
 	BOOL history;
 	TCHAR cid[ONLINE_CID_SIZE];
 	ONLINE_SCRIPT *script;
+	CONTENT content;
 	HFONT hFont;
 	HWND hSearch;
 	HWND hSearchButton;
@@ -125,9 +133,9 @@ typedef struct _OPEN_DATA {
 	RECT search_frame;
 	int list_id;
 	int script_id;
-	int remove_id;
 	int skip;
-	TCHAR remove_cid[ONLINE_CID_SIZE];
+	BOOL closing;
+	REMOVE_REQUEST removes[MAX_REMOVES];
 } OPEN_DATA;
 
 // the save dialog
@@ -234,13 +242,54 @@ static void js_trim(TCHAR *str)
 }
 
 /*
+ * js_lower - lower case like JavaScript's toLowerCase() (free the result with mem_free)
+ *            ICU (icu.dll, Windows 10 1703 or later) does the full Unicode case mapping
+ *            of JavaScript; without it CharLowerBuff differs for a few hundred characters
+ */
+typedef int (__cdecl *ICU_STRTOLOWER)(WCHAR *dest, int destCapacity, const WCHAR *src, int srcLength, const char *locale, int *pErrorCode);
+
+static TCHAR *js_lower(const TCHAR *str)
+{
+	static ICU_STRTOLOWER u_strToLower = NULL;
+	static BOOL checked = FALSE;
+	TCHAR *ret;
+	int len = lstrlen(str);
+
+	if (!checked) {
+		HMODULE hIcu = LoadLibrary(TEXT("icu.dll"));
+		if (hIcu != NULL) {
+			u_strToLower = (ICU_STRTOLOWER)GetProcAddress(hIcu, "u_strToLower");
+		}
+		checked = TRUE;
+	}
+	if (u_strToLower != NULL) {
+		// a character can become two (U+0130 is "i" and U+0307)
+		int err = 0, cap = len * 2 + 1, n;
+		if ((ret = mem_alloc(sizeof(TCHAR) * cap)) == NULL) {
+			return NULL;
+		}
+		n = u_strToLower(ret, cap, str, len, "", &err);
+		if (err <= 0 && n >= 0 && n < cap) {
+			*(ret + n) = TEXT('\0');
+			return ret;
+		}
+		mem_free(&ret);
+	}
+	if ((ret = alloc_copy(str)) == NULL) {
+		return NULL;
+	}
+	CharLowerBuff(ret, len);
+	return ret;
+}
+
+/*
  * password_crc - CRC32 of the password sent to the server (pg0_string.crc32 of the web version)
  */
 static unsigned int password_crc(const TCHAR *str)
 {
 	static unsigned int table[256];
 	static BOOL init = FALSE;
-	TCHAR *buf, *p;
+	TCHAR *buf, *lower, *p;
 	unsigned int crc = 0xFFFFFFFF;
 	int i, j;
 
@@ -261,7 +310,11 @@ static unsigned int password_crc(const TCHAR *str)
 		return 0;
 	}
 	js_trim(buf);
-	CharLowerBuff(buf, lstrlen(buf));
+	lower = js_lower(buf);
+	mem_free(&buf);
+	if ((buf = lower) == NULL) {
+		return 0;
+	}
 	// only the low byte of each UTF-16 code unit counts, as in the web version
 	for (p = buf; *p != TEXT('\0'); p++) {
 		crc = (crc >> 8) ^ table[(crc ^ (unsigned int)*p) & 0xFF];
@@ -456,7 +509,7 @@ static void format_time(const double ms, TCHAR *ret)
 }
 
 /*
- * to_crlf - copy a text with its line breaks changed to CR+LF (the editor of this program)
+ * to_crlf - copy a text with its line breaks (LF, CR+LF and lone CR) changed to CR+LF (the editor of this program)
  */
 static TCHAR *to_crlf(const TCHAR *str)
 {
@@ -465,23 +518,31 @@ static TCHAR *to_crlf(const TCHAR *str)
 	int len = 0;
 
 	for (p = str; *p != TEXT('\0'); p++) {
-		len += (*p == TEXT('\n') && (p == str || *(p - 1) != TEXT('\r'))) ? 2 : 1;
+		if (*p == TEXT('\r') && *(p + 1) == TEXT('\n')) {
+			continue;
+		}
+		len += (*p == TEXT('\r') || *p == TEXT('\n')) ? 2 : 1;
 	}
 	if ((ret = mem_alloc(sizeof(TCHAR) * (len + 1))) == NULL) {
 		return NULL;
 	}
 	for (p = str, r = ret; *p != TEXT('\0'); p++) {
-		if (*p == TEXT('\n') && (p == str || *(p - 1) != TEXT('\r'))) {
-			*(r++) = TEXT('\r');
+		if (*p == TEXT('\r') && *(p + 1) == TEXT('\n')) {
+			continue;
 		}
-		*(r++) = *p;
+		if (*p == TEXT('\r') || *p == TEXT('\n')) {
+			*(r++) = TEXT('\r');
+			*(r++) = TEXT('\n');
+		} else {
+			*(r++) = *p;
+		}
 	}
 	*r = TEXT('\0');
 	return ret;
 }
 
 /*
- * to_lf - copy a text with its CR+LF line breaks changed to LF (the web version)
+ * to_lf - copy a text with its line breaks (CR+LF and lone CR) changed to LF (the web version)
  */
 static TCHAR *to_lf(const TCHAR *str)
 {
@@ -492,7 +553,10 @@ static TCHAR *to_lf(const TCHAR *str)
 		return NULL;
 	}
 	for (p = str, r = ret; *p != TEXT('\0'); p++) {
-		if (*p == TEXT('\r') && *(p + 1) == TEXT('\n')) {
+		if (*p == TEXT('\r')) {
+			if (*(p + 1) != TEXT('\n')) {
+				*(r++) = TEXT('\n');
+			}
 			continue;
 		}
 		*(r++) = *p;
@@ -579,6 +643,18 @@ static HWND create_control(const HWND hDlg, const TCHAR *cls, const TCHAR *text,
 }
 
 /*
+ * work_area - monitor of a window (rcWork is the area without the taskbar)
+ */
+static void work_area(const HWND hWnd, MONITORINFO *mi)
+{
+	ZeroMemory(mi, sizeof(MONITORINFO));
+	mi->cbSize = sizeof(MONITORINFO);
+	if (GetMonitorInfo(MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST), mi) == FALSE) {
+		SystemParametersInfo(SPI_GETWORKAREA, 0, &mi->rcWork, 0);
+	}
+}
+
+/*
  * center_window - put a window in the middle of its owner
  */
 static void center_window(const HWND hWnd, const int width, const int height)
@@ -592,8 +668,7 @@ static void center_window(const HWND hWnd, const int width, const int height)
 		hOwner = GetDesktopWindow();
 	}
 	GetWindowRect(hOwner, &rect);
-	mi.cbSize = sizeof(MONITORINFO);
-	GetMonitorInfo(MonitorFromWindow(hOwner, MONITOR_DEFAULTTONEAREST), &mi);
+	work_area(hOwner, &mi);
 	x = rect.left + (rect.right - rect.left - width) / 2;
 	y = rect.top + (rect.bottom - rect.top - height) / 2;
 	if (x + width > mi.rcWork.right) {
@@ -701,11 +776,12 @@ static void make_item(const JSON *js, const BOOL history, const BOOL first, ONLI
 /*
  * read_script - take the script from the response of an item
  */
-static BOOL read_script(const OPEN_DATA *od, const char *body, const TCHAR *cid)
+static BOOL read_script(OPEN_DATA *od, const char *body, const TCHAR *cid)
 {
 	JSON *js, *tags;
 	const TCHAR *str;
 	ONLINE_SCRIPT *script = od->script;
+	CONTENT *content = &od->content;
 
 	if ((js = json_parse(body)) == NULL || js->type != JSON_OBJECT) {
 		json_free(js);
@@ -721,19 +797,29 @@ static BOOL read_script(const OPEN_DATA *od, const char *body, const TCHAR *cid)
 	script->has_speed = (json_get(js, TEXT("speed")) != NULL && json_get(js, TEXT("speed"))->type == JSON_NUMBER);
 	script->speed = (int)json_get_number(js, TEXT("speed"), 0);
 
-	ZeroMemory(&current, sizeof(CONTENT));
-	lstrcpyn(current.cid, cid, ONLINE_CID_SIZE);
+	// kept in the dialog until it ends with the script (see finish_open)
+	ZeroMemory(content, sizeof(CONTENT));
+	lstrcpyn(content->cid, cid, ONLINE_CID_SIZE);
 	str = json_get_string(js, TEXT("name"));
-	lstrcpyn(current.name, (str != NULL) ? str : TEXT(""), BUF_SIZE);
+	lstrcpyn(content->name, (str != NULL) ? str : TEXT(""), BUF_SIZE);
 	str = json_get_string(js, TEXT("author"));
-	lstrcpyn(current.author, (str != NULL) ? str : TEXT(""), BUF_SIZE);
-	current.private_mode = json_is_true(json_get(js, TEXT("private")));
+	lstrcpyn(content->author, (str != NULL) ? str : TEXT(""), BUF_SIZE);
+	content->private_mode = json_is_true(json_get(js, TEXT("private")));
 	tags = json_get(js, TEXT("tags"));
 	if (tags != NULL && tags->type == JSON_ARRAY && tags->child != NULL && tags->child->type == JSON_STRING) {
-		lstrcpyn(current.tag, tags->child->str, ONLINE_TAG_SIZE);
+		lstrcpyn(content->tag, tags->child->str, ONLINE_TAG_SIZE);
 	}
 	json_free(js);
 	return TRUE;
+}
+
+/*
+ * end_open - end the list dialog; the results that arrive afterwards are dropped
+ */
+static void end_open(const HWND hDlg, OPEN_DATA *od, const INT_PTR result)
+{
+	od->closing = TRUE;
+	EndDialog(hDlg, result);
 }
 
 /*
@@ -750,16 +836,14 @@ static void open_request_list(const HWND hDlg, OPEN_DATA *od)
 		wsprintf(buf, TEXT("/api/script/history/%s?count=%d&skip=%d"), od->cid, LIST_COUNT, od->skip);
 		url = make_url(buf);
 	} else {
-		enc_keyword = http_encode_component(keyword);
+		// what is in the search box, even if the search button has not been pressed (as the web version)
+		GetWindowText(od->hSearch, buf, BUF_SIZE);
+		enc_keyword = http_encode_component(buf);
 		enc_uuid = http_encode_component(uuid);
-		if (enc_keyword == NULL || enc_uuid == NULL) {
-			mem_free(&enc_keyword);
-			mem_free(&enc_uuid);
-			return;
-		}
-		len = lstrlen(enc_keyword) + lstrlen(enc_uuid) + BUF_SIZE;
-		if ((path = mem_alloc(sizeof(TCHAR) * len)) != NULL) {
-			wsprintf(path, TEXT("/api/script/%s?count=%d&skip=%d&uuid=%s&sort=%s"),
+		len = ((enc_keyword != NULL) ? lstrlen(enc_keyword) : 0) + ((enc_uuid != NULL) ? lstrlen(enc_uuid) : 0) + BUF_SIZE;
+		path = (enc_keyword != NULL && enc_uuid != NULL) ? mem_alloc(sizeof(TCHAR) * len) : NULL;
+		if (path != NULL) {
+			_stprintf_s(path, len, TEXT("/api/script/%s?count=%d&skip=%d&uuid=%s&sort=%s"),
 				enc_keyword, LIST_COUNT, od->skip, enc_uuid, (is_new_sort()) ? TEXT("new") : TEXT("popular"));
 			if (lstrcmp(list_filter, TEXT("mine")) == 0) {
 				lstrcat(path, TEXT("&mine=1"));
@@ -814,8 +898,9 @@ static void open_list_result(const HWND hDlg, OPEN_DATA *od, const HTTP_RESULT *
 		} else {
 			message(hDlg, res(IDS_STRING_ONLINE_ERROR_CONNECTION), MB_ICONEXCLAMATION);
 		}
-		if (od->history) {
-			EndDialog(hDlg, IDCANCEL);
+		// a version may have been read while the message was shown
+		if (od->history && !od->closing) {
+			end_open(hDlg, od, IDCANCEL);
 		}
 		return;
 	}
@@ -874,7 +959,7 @@ static void open_script_result(const HWND hDlg, OPEN_DATA *od, const HTTP_RESULT
 	switch (result->status) {
 	case 200:
 		if (read_script(od, result->body, od->cid) == TRUE) {
-			EndDialog(hDlg, IDOK);
+			end_open(hDlg, od, IDOK);
 			return;
 		}
 		message(hDlg, res(IDS_STRING_ONLINE_ERROR_CONNECTION), MB_ICONEXCLAMATION);
@@ -917,6 +1002,7 @@ static INT_PTR CALLBACK input_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lP
 
 			hLabel = create_control(hDlg, TEXT("STATIC"), res(IDS_STRING_ONLINE_REMOVE_PASSWORD), SS_LEFT, 0, IDC_LABEL, id->hFont);
 			hEdit = create_control(hDlg, TEXT("EDIT"), TEXT(""), WS_TABSTOP | ES_AUTOHSCROLL | ES_PASSWORD, WS_EX_CLIENTEDGE, IDC_INPUT, id->hFont);
+			SendMessage(hEdit, EM_SETLIMITTEXT, id->size - 1, 0);
 			hOk = create_control(hDlg, TEXT("BUTTON"), res(IDS_STRING_ONLINE_OK_BUTTON), WS_TABSTOP | BS_DEFPUSHBUTTON, 0, IDOK, id->hFont);
 			hCancel = create_control(hDlg, TEXT("BUTTON"), res(IDS_STRING_ONLINE_CANCEL_BUTTON), WS_TABSTOP | BS_PUSHBUTTON, 0, IDCANCEL, id->hFont);
 			y = margin;
@@ -961,13 +1047,15 @@ static INT_PTR CALLBACK input_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lP
 /*
  * open_remove - remove a script from the online storage
  */
-static void open_remove(const HWND hDlg, OPEN_DATA *od, const ONLINE_ITEM *item)
+static void open_remove(const HWND hDlg, OPEN_DATA *od, const TCHAR *cid)
 {
 	INPUT_DATA id;
 	JSON_WRITER jw;
+	REMOVE_REQUEST *rr;
 	TCHAR pass[BUF_SIZE];
 	TCHAR *url, *path;
 	char *body;
+	int i;
 
 	ZeroMemory(&id, sizeof(INPUT_DATA));
 	*pass = TEXT('\0');
@@ -983,12 +1071,16 @@ static void open_remove(const HWND hDlg, OPEN_DATA *od, const ONLINE_ITEM *item)
 	body = json_writer_to_utf8(&jw);
 	json_writer_free(&jw);
 
-	lstrcpyn(od->remove_cid, item->cid, ONLINE_CID_SIZE);
-	path = alloc_join(TEXT("/api/script/"), item->cid);
+	// a free slot, or the oldest one
+	for (i = 0; i < MAX_REMOVES && od->removes[i].id != 0; i++);
+	rr = &od->removes[(i < MAX_REMOVES) ? i : 0];
+	rr->id = next_request_id();
+	lstrcpyn(rr->cid, cid, ONLINE_CID_SIZE);
+	path = alloc_join(TEXT("/api/script/"), cid);
 	url = (path != NULL) ? make_url(path) : NULL;
-	od->remove_id = next_request_id();
 	if (body == NULL || url == NULL ||
-		http_request_async(hDlg, WM_HTTP_RESULT, od->remove_id, TEXT("DELETE"), url, body, REQUEST_REMOVE) == FALSE) {
+		http_request_async(hDlg, WM_HTTP_RESULT, rr->id, TEXT("DELETE"), url, body, REQUEST_REMOVE) == FALSE) {
+		rr->id = 0;
 		message(hDlg, res(IDS_STRING_ONLINE_ERROR_CONNECTION), MB_ICONEXCLAMATION);
 	}
 	mem_free(&path);
@@ -999,13 +1091,13 @@ static void open_remove(const HWND hDlg, OPEN_DATA *od, const ONLINE_ITEM *item)
 /*
  * open_remove_result - take the removed script out of the list
  */
-static void open_remove_result(const HWND hDlg, OPEN_DATA *od, const HTTP_RESULT *result)
+static void open_remove_result(const HWND hDlg, OPEN_DATA *od, const HTTP_RESULT *result, const TCHAR *cid)
 {
 	int i;
 
 	switch (result->status) {
 	case 200:
-		i = (int)SendMessage(od->hList, OLM_FINDCID, 0, (LPARAM)od->remove_cid);
+		i = (int)SendMessage(od->hList, OLM_FINDCID, 0, (LPARAM)cid);
 		if (i >= 0) {
 			SendMessage(od->hList, OLM_DELETEITEM, i, 0);
 		}
@@ -1031,6 +1123,7 @@ static void open_remove_result(const HWND hDlg, OPEN_DATA *od, const HTTP_RESULT
 static void open_show_menu(const HWND hDlg, OPEN_DATA *od, const int index, const POINT pt)
 {
 	ONLINE_ITEM *item = (ONLINE_ITEM *)SendMessage(od->hList, OLM_GETITEM, index, 0);
+	TCHAR cid[ONLINE_CID_SIZE];
 	TCHAR *url, *tmp;
 	HMENU hMenu;
 	int cmd;
@@ -1038,6 +1131,9 @@ static void open_show_menu(const HWND hDlg, OPEN_DATA *od, const int index, cons
 	if (item == NULL || (hMenu = CreatePopupMenu()) == NULL) {
 		return;
 	}
+	// the item can be removed from the list while the menu is shown (a removal completes)
+	lstrcpyn(cid, (od->history) ? od->cid : item->cid, ONLINE_CID_SIZE);
+	item = NULL;
 	AppendMenu(hMenu, MF_STRING, ID_ITEM_COPY, res(IDS_STRING_ONLINE_COPY));
 	AppendMenu(hMenu, MF_STRING, ID_ITEM_COPY_AUTORUN, res(IDS_STRING_ONLINE_COPY_AUTORUN));
 	if (!od->history) {
@@ -1052,7 +1148,7 @@ static void open_show_menu(const HWND hDlg, OPEN_DATA *od, const int index, cons
 	case ID_ITEM_COPY:
 	case ID_ITEM_COPY_AUTORUN:
 		// the URL of the web version that opens (and runs) the script
-		tmp = alloc_join(TEXT("/dev/?cid="), (od->history) ? od->cid : item->cid);
+		tmp = alloc_join(TEXT("/dev/?cid="), cid);
 		url = (tmp != NULL) ? make_url(tmp) : NULL;
 		mem_free(&tmp);
 		if (url != NULL && cmd == ID_ITEM_COPY_AUTORUN) {
@@ -1067,12 +1163,12 @@ static void open_show_menu(const HWND hDlg, OPEN_DATA *od, const int index, cons
 		break;
 
 	case ID_ITEM_HISTORY:
-		lstrcpyn(od->cid, item->cid, ONLINE_CID_SIZE);
-		EndDialog(hDlg, RESULT_HISTORY);
+		lstrcpyn(od->cid, cid, ONLINE_CID_SIZE);
+		end_open(hDlg, od, RESULT_HISTORY);
 		break;
 
 	case ID_ITEM_REMOVE:
-		open_remove(hDlg, od, item);
+		open_remove(hDlg, od, cid);
 		break;
 	}
 }
@@ -1127,7 +1223,7 @@ static void open_layout(const HWND hDlg, OPEN_DATA *od)
 		chips_height = (int)SendMessage(od->hChips, OCM_GETHEIGHT, 0, 0);
 		row = (chips_height > sort_height) ? chips_height : sort_height;
 		MoveWindow(od->hChips, margin, y + (row - chips_height) / 2, width - sort_width - Scale(8), chips_height, TRUE);
-		MoveWindow(od->hSort, margin + width - sort_width, y + (row - sort_height) / 2, sort_width, sort_height, TRUE);
+		MoveWindow(od->hSort, margin + width - sort_width, y + (row - sort_height) / 2, sort_width, sort_height * 8, TRUE);
 		y += row + Scale(15);
 	}
 	MoveWindow(od->hList, margin, y, width, client.bottom - margin - y, TRUE);
@@ -1181,6 +1277,7 @@ static void open_init(const HWND hDlg, OPEN_DATA *od)
 	SetWindowText(hDlg, res((od->history) ? IDS_STRING_ONLINE_HISTORY_TITLE : IDS_STRING_ONLINE_OPEN_TITLE));
 	if (!od->history) {
 		od->hSearch = create_control(hDlg, TEXT("EDIT"), keyword, WS_TABSTOP | ES_AUTOHSCROLL, 0, IDC_SEARCH, od->hFont);
+		SendMessage(od->hSearch, EM_SETLIMITTEXT, BUF_SIZE - 1, 0);
 		od->hSearchButton = create_control(hDlg, TEXT("BUTTON"), res(IDS_STRING_ONLINE_SEARCH), WS_TABSTOP | BS_OWNERDRAW, 0, IDC_SEARCH_BUTTON, od->hFont);
 		od->hChips = create_control(hDlg, ONLINE_CHIPS_WND_CLASS, TEXT(""), WS_TABSTOP, 0, IDC_CHIPS, od->hFont);
 		od->hSort = create_control(hDlg, TEXT("COMBOBOX"), TEXT(""), WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST, 0, IDC_SORT, od->hFont);
@@ -1200,8 +1297,7 @@ static void open_init(const HWND hDlg, OPEN_DATA *od)
 	SendMessage(od->hList, OLM_SETCURRENTTEXT, 0, (LPARAM)res(IDS_STRING_ONLINE_HISTORY_CURRENT));
 
 	// as tall as the screen allows, like the web version
-	mi.cbSize = sizeof(MONITORINFO);
-	GetMonitorInfo(MonitorFromWindow(GetWindow(hDlg, GW_OWNER), MONITOR_DEFAULTTONEAREST), &mi);
+	work_area(GetWindow(hDlg, GW_OWNER), &mi);
 	width = Scale(OPEN_WIDTH);
 	if (width > (mi.rcWork.right - mi.rcWork.left) * 9 / 10) {
 		width = (mi.rcWork.right - mi.rcWork.left) * 9 / 10;
@@ -1231,6 +1327,7 @@ static INT_PTR CALLBACK open_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPa
 		return FALSE;
 
 	case WM_DESTROY:
+		http_cancel(hDlg);
 		drop_results(hDlg);
 		if (od != NULL && od->hFont != NULL) {
 			DeleteObject(od->hFont);
@@ -1286,7 +1383,7 @@ static INT_PTR CALLBACK open_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPa
 			}
 			break;
 		case IDCANCEL:
-			EndDialog(hDlg, IDCANCEL);
+			end_open(hDlg, od, IDCANCEL);
 			break;
 		case IDC_SEARCH_BUTTON:
 			if (HIWORD(wParam) == BN_CLICKED) {
@@ -1336,6 +1433,11 @@ static INT_PTR CALLBACK open_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPa
 	case WM_HTTP_RESULT:
 		{
 			HTTP_RESULT *result = (HTTP_RESULT *)lParam;
+			int i;
+			if (od->closing) {
+				http_free_result(result);
+				break;
+			}
 			switch (result->param) {
 			case REQUEST_LIST:
 				if (result->id == od->list_id) {
@@ -1348,8 +1450,12 @@ static INT_PTR CALLBACK open_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPa
 				}
 				break;
 			case REQUEST_REMOVE:
-				if (result->id == od->remove_id) {
-					open_remove_result(hDlg, od, result);
+				for (i = 0; i < MAX_REMOVES; i++) {
+					if (od->removes[i].id == result->id) {
+						od->removes[i].id = 0;
+						open_remove_result(hDlg, od, result, od->removes[i].cid);
+						break;
+					}
 				}
 				break;
 			}
@@ -1416,6 +1522,7 @@ static void save_init(const HWND hDlg, SAVE_DATA *sd)
 		} else {
 			hWnd = create_control(hDlg, TEXT("EDIT"), TEXT(""), WS_TABSTOP | ES_AUTOHSCROLL | ((ids[i] == IDC_PASSWORD) ? ES_PASSWORD : 0),
 				WS_EX_CLIENTEDGE, ids[i], sd->hFont);
+			SendMessage(hWnd, EM_SETLIMITTEXT, BUF_SIZE - 1, 0);
 			MoveWindow(hWnd, margin, y, width * 9 / 10, eh, FALSE);
 			y += eh + Scale(12);
 		}
@@ -1528,6 +1635,10 @@ static void save_request(const HWND hDlg, SAVE_DATA *sd)
 	sd->save_id = next_request_id();
 	if (body != NULL && url != NULL &&
 		http_request_async(hDlg, WM_HTTP_RESULT, sd->save_id, (sd->post) ? TEXT("POST") : TEXT("PUT"), url, body, REQUEST_SAVE) == TRUE) {
+		// a disabled button cannot keep the focus
+		if (GetFocus() == GetDlgItem(hDlg, IDOK)) {
+			SetFocus(GetDlgItem(hDlg, IDC_FILE));
+		}
 		EnableWindow(GetDlgItem(hDlg, IDOK), FALSE);
 	} else {
 		sd->save_id = 0;
@@ -1556,12 +1667,17 @@ static void save_result(const HWND hDlg, SAVE_DATA *sd, const HTTP_RESULT *resul
 	switch (result->status) {
 	case 200:
 		if (sd->post) {
+			// the new cid comes in the response; without it the save is not usable
 			*sd->content.cid = TEXT('\0');
 			if ((js = json_parse(result->body)) != NULL) {
 				if ((str = json_get_string(js, TEXT("cid"))) != NULL) {
 					lstrcpyn(sd->content.cid, str, ONLINE_CID_SIZE);
 				}
 				json_free(js);
+			}
+			if (*sd->content.cid == TEXT('\0')) {
+				message(hDlg, res(IDS_STRING_ONLINE_ERROR_CONNECTION), MB_ICONEXCLAMATION);
+				break;
 			}
 		}
 		current = sd->content;
@@ -1614,6 +1730,7 @@ static INT_PTR CALLBACK save_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPa
 		return FALSE;
 
 	case WM_DESTROY:
+		http_cancel(hDlg);
 		drop_results(hDlg);
 		if (sd != NULL && sd->hFont != NULL) {
 			DeleteObject(sd->hFont);
@@ -1695,6 +1812,9 @@ void online_get_ini(const TCHAR *ini_path)
 	for (len = lstrlen(server); len > 0 && server[len - 1] == TEXT('/'); len--) {
 		server[len - 1] = TEXT('\0');
 	}
+	if (*server == TEXT('\0')) {
+		lstrcpy(server, DEFAULT_SERVER);
+	}
 	profile_get_string(INI_SECTION, TEXT("uuid"), TEXT(""), uuid, ONLINE_CID_SIZE - 1, ini_path);
 	ensure_uuid();
 	profile_get_string(INI_SECTION, TEXT("author"), TEXT(""), author, BUF_SIZE - 1, ini_path);
@@ -1757,6 +1877,19 @@ const TCHAR *online_get_cid(void)
 }
 
 /*
+ * finish_open - the script read by a list dialog becomes the one in the editor (only when the dialog ended with it)
+ */
+static BOOL finish_open(OPEN_DATA *od, const INT_PTR ret)
+{
+	if (ret == IDOK && od->script->code != NULL) {
+		current = od->content;
+		return TRUE;
+	}
+	mem_free(&od->script->code);
+	return FALSE;
+}
+
+/*
  * show_history - choose a version in the revision history of a script and read it
  */
 static BOOL show_history(const HWND hWnd, const TCHAR *cid, ONLINE_SCRIPT *script)
@@ -1766,7 +1899,7 @@ static BOOL show_history(const HWND hWnd, const TCHAR *cid, ONLINE_SCRIPT *scrip
 	ZeroMemory(&od, sizeof(OPEN_DATA));
 	od.script = script;
 	lstrcpyn(od.cid, cid, ONLINE_CID_SIZE);
-	return (dialog_box(hWnd, WS_THICKFRAME, history_proc, (LPARAM)&od) == IDOK && script->code != NULL);
+	return finish_open(&od, dialog_box(hWnd, WS_THICKFRAME, history_proc, (LPARAM)&od));
 }
 
 /*
@@ -1785,7 +1918,7 @@ BOOL online_open(const HWND hWnd, ONLINE_SCRIPT *script)
 	if (ret == RESULT_HISTORY) {
 		return show_history(hWnd, od.cid, script);
 	}
-	return (ret == IDOK && script->code != NULL);
+	return finish_open(&od, ret);
 }
 
 /*
