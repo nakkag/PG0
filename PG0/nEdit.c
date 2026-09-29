@@ -65,6 +65,16 @@
 
 #define KEYWORD_SIZE					10
 
+// character of a variable or function name (letters and digits of any script, '_')
+#ifdef UNICODE
+#define IS_WORD_CHAR(c)			((c >= TEXT('a') && c <= TEXT('z')) || (c >= TEXT('A') && c <= TEXT('Z')) || \
+								(c >= TEXT('0') && c <= TEXT('9')) || c == TEXT('_') || \
+								((unsigned short)(c) >= 0x80 && IsCharAlphaNumeric(c)))
+#else
+#define IS_WORD_CHAR(c)			((c >= TEXT('a') && c <= TEXT('z')) || (c >= TEXT('A') && c <= TEXT('Z')) || \
+								(c >= TEXT('0') && c <= TEXT('9')) || c == TEXT('_') || (unsigned char)(c) >= 0x80)
+#endif
+
 /* Global Variables */
 TCHAR keyword[5][KEYWORD_SIZE] = { TEXT("var"), TEXT("exit"), TEXT("if"), TEXT("else"), TEXT("while") };
 TCHAR keyword_extension[12][KEYWORD_SIZE] = { TEXT("for"), TEXT("do"), TEXT("break"), TEXT("continue"),
@@ -1779,8 +1789,7 @@ static void draw_line(const HWND hWnd, const HDC mdc, BUFFER *bf, const int i, c
 			}
 			if (keyword_len > 0) {
 				TCHAR c = *(p + keyword_len);
-				if ((c >= TEXT('a') && c <= TEXT('z')) || (c >= TEXT('A') && c <= TEXT('Z')) ||
-					(c >= TEXT('0') && c <= TEXT('9')) || c == TEXT('_')) {
+				if (IS_WORD_CHAR(c)) {
 					keyword_len = 0;
 				}
 			}
@@ -1792,17 +1801,14 @@ static void draw_line(const HWND hWnd, const HDC mdc, BUFFER *bf, const int i, c
 				SetTextColor(mdc, cur_color);
 			}
 		}
-		if (cur_color == COLOR_KEYWORD &&
-			!((*p >= TEXT('a') && *p <= TEXT('z')) || (*p >= TEXT('A') && *p <= TEXT('Z')) ||
-			(*p >= TEXT('0') && *p <= TEXT('9')) || *p == TEXT('_') || *p == TEXT('#'))) {
+		if (cur_color == COLOR_KEYWORD && !(IS_WORD_CHAR(*p) || *p == TEXT('#'))) {
 			// —\–ñŒã‚Æ•Ï”I—¹
 			offset += draw_string(hWnd, mdc, bf, &drect, offset, top, s, p - s, bf->sel);
 			s = p;
 			cur_color = GetSysColor(COLOR_WINDOWTEXT);
 			SetTextColor(mdc, cur_color);
 		}
-		if (!((*p >= TEXT('a') && *p <= TEXT('z')) || (*p >= TEXT('A') && *p <= TEXT('Z')) ||
-			(*p >= TEXT('0') && *p <= TEXT('9')) || *p == TEXT('_') || *p == TEXT('#'))) {
+		if (!(IS_WORD_CHAR(*p) || *p == TEXT('#'))) {
 			break_word = TRUE;
 		} else {
 			break_word = FALSE;

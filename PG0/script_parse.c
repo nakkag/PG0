@@ -53,6 +53,7 @@ static void FreeBracket(PARSEINFO *pi);
 
 static BOOL GetExtensionToken(PARSEINFO *pi);
 static void GetExtensionKeyword(PARSEINFO *pi, TCHAR *s);
+static BOOL IsIdentChar(TCHAR c);
 static BOOL GetToken(PARSEINFO *pi);
 static TOKEN *CreateToken(int type, TCHAR *p, int line);
 
@@ -389,6 +390,32 @@ static void GetExtensionKeyword(PARSEINFO *pi, TCHAR *s)
 	}else if(str_cmp_i(s, TEXT("function")) == 0){
 		pi->type = SYM_FUNCSTART;
 	}
+}
+
+/*
+ * IsIdentChar - character of a variable or function name
+ * (letters and digits of any script and '_', like the web version)
+ */
+static BOOL IsIdentChar(TCHAR c)
+{
+	if ((c >= TEXT('a') && c <= TEXT('z')) || (c >= TEXT('A') && c <= TEXT('Z')) ||
+		(c >= TEXT('0') && c <= TEXT('9')) || c == TEXT('_')) {
+		return TRUE;
+	}
+#ifdef UNICODE
+	if ((unsigned short)c >= 0x80) {
+		if ((unsigned short)c >= 0xD800 && (unsigned short)c <= 0xDFFF) {
+			// surrogate pair (characters outside the BMP)
+			return TRUE;
+		}
+		return (IsCharAlphaNumeric(c) != 0);
+	}
+#else
+	if ((unsigned char)c >= 0x80) {
+		return TRUE;
+	}
+#endif
+	return FALSE;
 }
 
 /*
@@ -730,8 +757,7 @@ static BOOL GetToken(PARSEINFO *pi)
 	} else {
 		pi->r = pi->p;
 	}
-	for (; (*pi->r >= TEXT('a') && *pi->r <= TEXT('z')) || (*pi->r >= TEXT('A') && *pi->r <= TEXT('Z')) ||
-		(*pi->r >= TEXT('0') && *pi->r <= TEXT('9')) || *pi->r == TEXT('_'); pi->r++);
+	for (; IsIdentChar(*pi->r); pi->r++);
 	if (pi->p == pi->r) {
 		Error(pi->ei, ERR_SENTENCE, pi->p, NULL);
 		return FALSE;
