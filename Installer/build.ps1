@@ -21,8 +21,8 @@
 	ビルド済みの Release フォルダのファイルからインストーラを作成します。
 
 .EXAMPLE
-	PS> .\build.ps1 -PlatformToolset v142
-	Win32 構成のツールセット (v140_xp) が無い環境で、ツールセットを指定してビルドします。
+	PS> .\build.ps1 -PlatformToolset v143
+	ツールセット (v145) が無い環境 (Visual Studio 2022 など) で、ツールセットを指定してビルドします。
 #>
 param(
 	# ビルド構成

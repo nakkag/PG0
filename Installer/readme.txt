@@ -39,10 +39,10 @@ PowerShell で以下を実行すると、PG0 本体とライブラリの Win32 (
 
   PS> .\build.ps1 -SkipBuild
 
-PG0 本体の Win32 構成はツールセットに v140_xp を指定しています。v140_xp が無い
-環境では -PlatformToolset でツールセットを指定してください。
+各プロジェクトはツールセットに v145 (Visual Studio 2026) を指定しています。
+Visual Studio 2022 以前では -PlatformToolset でツールセットを指定してください。
 
-  PS> .\build.ps1 -PlatformToolset v142
+  PS> .\build.ps1 -PlatformToolset v143
 
 主なオプション
   -Configuration <構成>   ビルド構成 (既定: Release)
