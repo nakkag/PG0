@@ -5,12 +5,16 @@
  *
  * The screen window: runs on its own thread, shows the screen surface scaled to
  * the window, can be switched to full screen, and collects touch/key input.
- * Top right buttons: sound on/off, full screen/restore, close (stops the script).
+ * Top right buttons: sound on/off, full screen/restore. Closing the window stops the script.
+ *
+ * Repaints never hold the surface lock for long: the screen surface is copied
+ * under the lock, then composited and stretched to the window outside it.
  */
 
 /* Include Files */
 #include <windows.h>
 #include <windowsx.h>
+#include <mmsystem.h>
 #include <tchar.h>
 #include <math.h>
 
@@ -18,6 +22,7 @@
 
 #pragma comment(lib, "imm32.lib")
 #pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "winmm.lib")
 
 /* Define */
 #define SC_WND_CLASS			TEXT("PG0ScreenWndClass")
@@ -31,18 +36,18 @@
 
 #define WM_SC_SHOW				(WM_APP + 1)
 #define WM_SC_QUIT				(WM_APP + 2)
+#define WM_SC_PAINT				(WM_APP + 3)
 
 #define TIMER_PAINT				1
-#define PAINT_INTERVAL			15
+#define MIN_PAINT_INTERVAL		5		/* ms between repaints (200 fps at most) */
 
 #define BUTTON_SIZE				40
 #define BUTTON_GAP				10
-#define BUTTON_COUNT			3
-#define BUTTON_SOUND			0
-#define BUTTON_FULLSCREEN		1
-#define BUTTON_CLOSE			2
-#define BUTTON_COLOR			0xBF808080
-#define BUTTON_RED				0xBFFF0000
+#define BUTTON_COUNT			SC_BUTTON_COUNT
+#define BUTTON_SOUND			SC_BUTTON_SOUND
+#define BUTTON_FULLSCREEN		SC_BUTTON_FULLSCREEN
+#define BUTTON_COLOR			SC_BUTTON_COLOR
+#define BUTTON_RED				SC_BUTTON_RED
 
 #define MIN_WINDOW_WIDTH		200
 #define MIN_WINDOW_HEIGHT		150
@@ -104,9 +109,15 @@ static WINDOWPLACEMENT g_placement;
 static SC_SETTINGS g_settings;
 static BOOL g_settings_loaded = FALSE;
 static SC_VIEW g_view;
-static HBITMAP g_back = NULL;
-static HDC g_backdc = NULL;
-static int g_back_w = 0, g_back_h = 0;
+static DWORD *g_snap = NULL;			/* copy of the screen surface, taken under the lock */
+static HBITMAP g_comp = NULL;			/* screen composited over the background color */
+static HDC g_compdc = NULL;
+static DWORD *g_comp_bits = NULL;
+static int g_comp_w = 0, g_comp_h = 0;
+static HBRUSH g_back_brush = NULL;
+static LONG g_paint_pending = 0;
+static DWORD g_last_paint = 0;
+static BOOL g_use_gdi = FALSE;			/* Direct2D unavailable: paint with GDI */
 static int g_dpi = 96;
 static BOOL g_captured = FALSE;
 static BOOL g_touch_active = FALSE;
@@ -378,11 +389,6 @@ static void draw_buttons(HWND hWnd, GpGraphics *g)
 		draw_icon_line(g, pen, &rc, 0.16, 0.90, 0.16, 0.58);
 	}
 
-	/* close */
-	button_rect(hWnd, BUTTON_CLOSE, &rc);
-	draw_icon_line(g, pen, &rc, 0.18, 0.18, 0.82, 0.82);
-	draw_icon_line(g, pen, &rc, 0.82, 0.18, 0.18, 0.82);
-
 end:
 	if (pen != NULL) GdipDeletePen(pen);
 	if (thin != NULL) GdipDeletePen(thin);
@@ -391,61 +397,115 @@ end:
 }
 
 /*
- * ensure_back_buffer
+ * ensure_canvas_buffers - snapshot and composite buffers of the screen size
  */
-static BOOL ensure_back_buffer(HWND hWnd, int cw, int ch)
+static BOOL ensure_canvas_buffers(HWND hWnd, int w, int h)
 {
 	HDC hdc;
 	BITMAPINFO bmi;
-	void *bits;
+	void *bits = NULL;
 
-	if (g_backdc != NULL && g_back_w == cw && g_back_h == ch) {
+	if (g_comp != NULL && g_comp_w == w && g_comp_h == h) {
 		return TRUE;
 	}
-	if (g_back != NULL) {
-		DeleteObject(g_back);
-		g_back = NULL;
+	if (g_comp != NULL) {
+		DeleteObject(g_comp);
+		g_comp = NULL;
+		g_comp_bits = NULL;
 	}
-	if (g_backdc == NULL) {
+	if (g_snap != NULL) {
+		HeapFree(GetProcessHeap(), 0, g_snap);
+		g_snap = NULL;
+	}
+	g_comp_w = 0;
+	g_comp_h = 0;
+	if (w <= 0 || h <= 0) {
+		return FALSE;
+	}
+	if (g_compdc == NULL) {
 		hdc = GetDC(hWnd);
-		g_backdc = CreateCompatibleDC(hdc);
+		g_compdc = CreateCompatibleDC(hdc);
 		ReleaseDC(hWnd, hdc);
-		if (g_backdc == NULL) {
+		if (g_compdc == NULL) {
 			return FALSE;
 		}
 	}
+	g_snap = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (SIZE_T)w * h * sizeof(DWORD));
+	if (g_snap == NULL) {
+		return FALSE;
+	}
 	ZeroMemory(&bmi, sizeof(bmi));
 	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bmi.bmiHeader.biWidth = (cw > 0) ? cw : 1;
-	bmi.bmiHeader.biHeight = -((ch > 0) ? ch : 1);
+	bmi.bmiHeader.biWidth = w;
+	bmi.bmiHeader.biHeight = -h;
 	bmi.bmiHeader.biPlanes = 1;
 	bmi.bmiHeader.biBitCount = 32;
 	bmi.bmiHeader.biCompression = BI_RGB;
-	g_back = CreateDIBSection(g_backdc, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
-	if (g_back == NULL) {
+	g_comp = CreateDIBSection(g_compdc, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
+	if (g_comp == NULL) {
+		HeapFree(GetProcessHeap(), 0, g_snap);
+		g_snap = NULL;
 		return FALSE;
 	}
-	SelectObject(g_backdc, g_back);
-	g_back_w = cw;
-	g_back_h = ch;
+	g_comp_bits = bits;
+	SelectObject(g_compdc, g_comp);
+	g_comp_w = w;
+	g_comp_h = h;
 	return TRUE;
 }
 
 /*
- * free_back_buffer
+ * free_canvas_buffers
  */
-static void free_back_buffer(void)
+static void free_canvas_buffers(void)
 {
-	if (g_backdc != NULL) {
-		DeleteDC(g_backdc);
-		g_backdc = NULL;
+	if (g_compdc != NULL) {
+		DeleteDC(g_compdc);
+		g_compdc = NULL;
 	}
-	if (g_back != NULL) {
-		DeleteObject(g_back);
-		g_back = NULL;
+	if (g_comp != NULL) {
+		DeleteObject(g_comp);
+		g_comp = NULL;
+		g_comp_bits = NULL;
 	}
-	g_back_w = 0;
-	g_back_h = 0;
+	if (g_snap != NULL) {
+		HeapFree(GetProcessHeap(), 0, g_snap);
+		g_snap = NULL;
+	}
+	if (g_back_brush != NULL) {
+		DeleteObject(g_back_brush);
+		g_back_brush = NULL;
+	}
+	g_comp_w = 0;
+	g_comp_h = 0;
+}
+
+/*
+ * composite_canvas - snapshot (premultiplied) over the background color
+ */
+static void composite_canvas(ARGB bg)
+{
+	const DWORD *src = g_snap;
+	DWORD *dst = g_comp_bits;
+	DWORD bgp = bg | 0xFF000000;
+	DWORD br = (bg >> 16) & 0xFF, bgc = (bg >> 8) & 0xFF, bb = bg & 0xFF;
+	SIZE_T i, n = (SIZE_T)g_comp_w * g_comp_h;
+
+	for (i = 0; i < n; i++) {
+		DWORD p = src[i];
+		DWORD a = p >> 24;
+		if (a == 255) {
+			dst[i] = p;
+		} else if (a == 0) {
+			dst[i] = bgp;
+		} else {
+			DWORD inv = 255 - a;
+			dst[i] = 0xFF000000 |
+				((((p >> 16) & 0xFF) + (br * inv + 127) / 255) << 16) |
+				((((p >> 8) & 0xFF) + (bgc * inv + 127) / 255) << 8) |
+				((p & 0xFF) + (bb * inv + 127) / 255);
+		}
+	}
 }
 
 /*
@@ -455,50 +515,138 @@ static void paint_window(HWND hWnd)
 {
 	PAINTSTRUCT ps;
 	HDC hdc;
-	RECT rc;
+	RECT rc, band;
 	GpGraphics *g = NULL;
-	int cw, ch;
+	ARGB bg;
+	BOOL have, changed = FALSE;
+	int cw, ch, w, h, left, top, dw, dh;
 
 	hdc = BeginPaint(hWnd, &ps);
 	GetClientRect(hWnd, &rc);
 	cw = rc.right - rc.left;
 	ch = rc.bottom - rc.top;
-	if (cw <= 0 || ch <= 0 || !ensure_back_buffer(hWnd, cw, ch)) {
+	if (cw <= 0 || ch <= 0) {
 		EndPaint(hWnd, &ps);
 		return;
 	}
 	update_view(hWnd);
-	if (GdipCreateFromHDC(g_backdc, &g) == GpOk) {
-		GdipGraphicsClear(g, SC_BACK_COLOR);
+	if (!g_use_gdi) {
+		SC_PAINT_INFO info;
+		int i;
+		info.cw = cw;
+		info.ch = ch;
+		info.w = g_view.width;
+		info.h = g_view.height;
+		info.left = g_view.left;
+		info.top = g_view.top;
+		info.scale = g_view.scale;
+		info.bg = g_sc.bg_color;
+		info.mute = g_sc.mute;
+		info.fullscreen = g_fullscreen;
+		for (i = 0; i < BUTTON_COUNT; i++) {
+			button_rect(hWnd, i, &info.button[i]);
+		}
+		if (sc_d2d_paint(hWnd, &info)) {
+			EndPaint(hWnd, &ps);
+			g_last_paint = timeGetTime();
+			return;
+		}
+		g_use_gdi = TRUE;
+	}
+	if (g_back_brush == NULL) {
+		g_back_brush = CreateSolidBrush(RGB((SC_BACK_COLOR >> 16) & 0xFF, (SC_BACK_COLOR >> 8) & 0xFF, SC_BACK_COLOR & 0xFF));
+	}
+
+	/* GDI: take a copy of the screen while holding the lock as briefly as possible */
+	EnterCriticalSection(&g_sc.screen_cs);
+	w = g_sc.screen.w;
+	h = g_sc.screen.h;
+	bg = g_sc.bg_color;
+	have = (g_sc.screen.bits != NULL) && ensure_canvas_buffers(hWnd, w, h);
+	if (have && InterlockedExchange(&g_sc.dirty, 0) != 0) {
+		sc_surface_flush(&g_sc.screen);
+		CopyMemory(g_snap, g_sc.screen.bits, (SIZE_T)w * h * sizeof(DWORD));
+		changed = TRUE;
+	}
+	LeaveCriticalSection(&g_sc.screen_cs);
+	if (changed) {
+		composite_canvas(bg);
+	}
+
+	left = (int)floor(g_view.left + 0.5);
+	top = (int)floor(g_view.top + 0.5);
+	dw = (int)floor(w * g_view.scale + 0.5);
+	dh = (int)floor(h * g_view.scale + 0.5);
+	if (!have) {
+		FillRect(hdc, &rc, g_back_brush);
+	} else {
+		/* letterbox bands */
+		if (top > 0) {
+			SetRect(&band, 0, 0, cw, top);
+			FillRect(hdc, &band, g_back_brush);
+		}
+		if (top + dh < ch) {
+			SetRect(&band, 0, top + dh, cw, ch);
+			FillRect(hdc, &band, g_back_brush);
+		}
+		if (left > 0) {
+			SetRect(&band, 0, top, left, top + dh);
+			FillRect(hdc, &band, g_back_brush);
+		}
+		if (left + dw < cw) {
+			SetRect(&band, left + dw, top, cw, top + dh);
+			FillRect(hdc, &band, g_back_brush);
+		}
+		if (dw == w && dh == h) {
+			BitBlt(hdc, left, top, w, h, g_compdc, 0, 0, SRCCOPY);
+		} else {
+			SetStretchBltMode(hdc, HALFTONE);
+			SetBrushOrgEx(hdc, 0, 0, NULL);
+			StretchBlt(hdc, left, top, dw, dh, g_compdc, 0, 0, w, h, SRCCOPY);
+		}
+	}
+	if (GdipCreateFromHDC(hdc, &g) == GpOk) {
 		GdipSetPixelOffsetMode(g, PixelOffsetModeHalf);
 		GdipSetSmoothingMode(g, SmoothingModeAntiAlias);
-		EnterCriticalSection(&g_sc.cs);
-		if (g_sc.screen.bmp != NULL) {
-			GpSolidFill *brush = NULL;
-			GpImageAttributes *attr = NULL;
-			REAL dw = (REAL)(g_sc.screen.w * g_view.scale);
-			REAL dh = (REAL)(g_sc.screen.h * g_view.scale);
-			if (GdipCreateSolidFill(g_sc.bg_color, &brush) == GpOk) {
-				GdipFillRectangle(g, brush, (REAL)g_view.left, (REAL)g_view.top, dw, dh);
-				GdipDeleteBrush(brush);
-			}
-			GdipSetInterpolationMode(g, (g_view.scale == 1.0) ? InterpolationModeNearestNeighbor : InterpolationModeHighQualityBilinear);
-			if (GdipCreateImageAttributes(&attr) == GpOk) {
-				GdipSetImageAttributesWrapMode(attr, WrapModeTileFlipXY, 0, FALSE);
-			}
-			sc_surface_flush(&g_sc.screen);
-			GdipDrawImageRectRect(g, g_sc.screen.bmp, (REAL)g_view.left, (REAL)g_view.top, dw, dh,
-				0, 0, (REAL)g_sc.screen.w, (REAL)g_sc.screen.h, UnitPixel, attr, NULL, NULL);
-			if (attr != NULL) {
-				GdipDisposeImageAttributes(attr);
-			}
-		}
-		LeaveCriticalSection(&g_sc.cs);
 		draw_buttons(hWnd, g);
 		GdipDeleteGraphics(g);
 	}
-	BitBlt(hdc, 0, 0, cw, ch, g_backdc, 0, 0, SRCCOPY);
 	EndPaint(hWnd, &ps);
+	g_last_paint = timeGetTime();
+}
+
+/*
+ * do_paint - repaint now
+ */
+static void do_paint(HWND hWnd)
+{
+	InvalidateRect(hWnd, NULL, FALSE);
+	UpdateWindow(hWnd);
+}
+
+/*
+ * schedule_paint - repaint, keeping a minimum interval between repaints
+ * (a short Sleep is used because SetTimer cannot wait less than about 10 ms)
+ */
+static void schedule_paint(HWND hWnd)
+{
+	DWORD elapsed = timeGetTime() - g_last_paint;
+
+	if (elapsed < MIN_PAINT_INTERVAL) {
+		Sleep(MIN_PAINT_INTERVAL - elapsed);
+	}
+	do_paint(hWnd);
+}
+
+/*
+ * sc_screen_dirty - the screen changed: ask the window thread for a repaint
+ */
+void sc_screen_dirty(void)
+{
+	InterlockedExchange(&g_sc.dirty, 1);
+	if (g_hwnd != NULL && InterlockedCompareExchange(&g_paint_pending, 1, 0) == 0) {
+		PostMessage(g_hwnd, WM_SC_PAINT, 0, 0);
+	}
 }
 
 /*
@@ -582,7 +730,7 @@ static HWND find_main_window(void)
 }
 
 /*
- * request_stop - the close button: stop the running script
+ * request_stop - closing the window: stop the running script
  */
 static void request_stop(void)
 {
@@ -938,13 +1086,20 @@ static LRESULT CALLBACK ScreenProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 			ImmAssociateContext(hWnd, NULL);
 			g_dpi = window_dpi(hWnd);
 			g_placement.length = 0;
-			SetTimer(hWnd, TIMER_PAINT, PAINT_INTERVAL, NULL);
+			g_paint_pending = 0;
+			g_last_paint = timeGetTime() - MIN_PAINT_INTERVAL;
 		}
 		break;
 
+	case WM_SC_PAINT:
+		InterlockedExchange(&g_paint_pending, 0);
+		schedule_paint(hWnd);
+		break;
+
 	case WM_TIMER:
-		if (wParam == TIMER_PAINT && InterlockedExchange(&g_sc.dirty, 0) != 0) {
-			InvalidateRect(hWnd, NULL, FALSE);
+		if (wParam == TIMER_PAINT) {
+			KillTimer(hWnd, TIMER_PAINT);
+			do_paint(hWnd);
 		}
 		break;
 
@@ -1009,9 +1164,6 @@ static LRESULT CALLBACK ScreenProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 				break;
 			case BUTTON_FULLSCREEN:
 				set_fullscreen(hWnd, !g_fullscreen);
-				break;
-			case BUTTON_CLOSE:
-				request_stop();
 				break;
 			default:
 				mouse_down(hWnd, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), 0);
@@ -1102,7 +1254,8 @@ static LRESULT CALLBACK ScreenProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 
 	case WM_DESTROY:
 		KillTimer(hWnd, TIMER_PAINT);
-		free_back_buffer();
+		free_canvas_buffers();
+		sc_d2d_shutdown();
 		PostQuitMessage(0);
 		break;
 
@@ -1178,6 +1331,8 @@ BOOL sc_window_start(void)
 	g_captured = FALSE;
 	g_touch_active = FALSE;
 	g_placed = FALSE;
+	/* PG0_SCREEN_GDI=1 forces the GDI presenter (no Direct2D) */
+	g_use_gdi = (GetEnvironmentVariable(TEXT("PG0_SCREEN_GDI"), NULL, 0) > 0);
 	g_ready = CreateEvent(NULL, TRUE, FALSE, NULL);
 	if (g_ready == NULL) {
 		return FALSE;

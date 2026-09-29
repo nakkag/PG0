@@ -21,6 +21,11 @@
 #define SC_MAX_KEYS				64
 #define SC_KEY_NAME_SIZE		32
 #define SC_BACK_COLOR			0xFFF1F3F4
+#define SC_BUTTON_COLOR			0xBF808080
+#define SC_BUTTON_RED			0xBFFF0000
+#define SC_BUTTON_SOUND			0
+#define SC_BUTTON_FULLSCREEN	1
+#define SC_BUTTON_COUNT			2
 #define SC_PI					3.14159265358979323846
 
 enum {
@@ -43,6 +48,7 @@ typedef struct _SURFACE {
 	GpBitmap *bmp;
 	GpGraphics *g;
 	int mask_mode;
+	BOOL opaque;					/* every pixel is known to have alpha 255 */
 } SURFACE;
 
 typedef struct _SC_POINT {
@@ -71,8 +77,24 @@ typedef struct _SC_NOTE {
 	double vol;
 } SC_NOTE;
 
+/* what a repaint needs to know about the window */
+typedef struct _SC_PAINT_INFO {
+	int cw;
+	int ch;
+	int w;
+	int h;
+	double left;
+	double top;
+	double scale;
+	ARGB bg;
+	BOOL mute;
+	BOOL fullscreen;
+	RECT button[SC_BUTTON_COUNT];
+} SC_PAINT_INFO;
+
 typedef struct _SC_STATE {
-	CRITICAL_SECTION cs;				/* surfaces, options, dirty */
+	CRITICAL_SECTION cs;				/* surfaces, options, dirty (script thread) */
+	CRITICAL_SECTION screen_cs;		/* pixels of the screen surface (also taken by repaints); cs -> screen_cs */
 	CRITICAL_SECTION input_cs;			/* touch, keys */
 	BOOL started;
 	SURFACE screen;
@@ -81,6 +103,8 @@ typedef struct _SC_STATE {
 	SURFACE **images;
 	int image_count;
 	BOOL offscreen_flag;
+	BOOL offscreen_synced;			/* screen and offscreen hold the same pixels */
+	BOOL offscreen_pending;			/* startOffscreen() still has to copy the screen into the offscreen */
 	ARGB bg_color;
 	BOOL fit;
 	LONG dirty;
@@ -98,16 +122,18 @@ extern HINSTANCE g_sc_hinst;
 /* screen_draw.c */
 BOOL sc_gdiplus_init(void);
 void sc_gdiplus_term(void);
+void sc_pool_shutdown(void);
 BOOL sc_surface_create(SURFACE *s, int w, int h);
 void sc_surface_free(SURFACE *s);
 GpGraphics *sc_surface_graphics(SURFACE *s);
 void sc_surface_flush(SURFACE *s);
 void sc_surface_clear(SURFACE *s);
-void sc_surface_draw_over(SURFACE *dst, SURFACE *src);
+BOOL sc_surface_draw_over(SURFACE *dst, SURFACE *src);
 void sc_surface_copy_region(SURFACE *dst, SURFACE *src, int x, int y);
 void sc_mask_composite(SURFACE *dst, SURFACE *layer, int mode);
 BOOL sc_parse_color(const TCHAR *str, ARGB *color);
 void sc_draw_line(SURFACE *s, double x1, double y1, double x2, double y2, ARGB color, double width);
+BOOL sc_fill_covers_surface(SURFACE *s, double x, double y, double w, double h, ARGB color);
 void sc_draw_rect(SURFACE *s, double x, double y, double w, double h, ARGB color, double width, BOOL fill);
 void sc_draw_ellipse(SURFACE *s, double x, double y, double rx, double ry, double rotation,
 	double start, double end, ARGB color, double width, BOOL fill, BOOL close);
@@ -126,9 +152,16 @@ DWORD sc_get_pixel(SURFACE *s, int x, int y);
 BOOL sc_window_start(void);
 void sc_window_show(void);
 void sc_window_stop(void);
+void sc_screen_dirty(void);
 void sc_settings_load(void);
 void sc_settings_save(void);
 void sc_input_reset(void);
+
+/* screen_d2d.c */
+BOOL sc_d2d_available(void);
+BOOL sc_d2d_paint(HWND hWnd, const SC_PAINT_INFO *info);
+void sc_d2d_release_target(void);
+void sc_d2d_shutdown(void);
 
 /* screen_sound.c */
 BOOL sc_sound_play(const SC_NOTE *notes, int count, BOOL repeat, int group);

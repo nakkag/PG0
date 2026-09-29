@@ -41,6 +41,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved)
 		DisableThreadLibraryCalls(hinst);
 		ZeroMemory(&g_sc, sizeof(g_sc));
 		InitializeCriticalSection(&g_sc.cs);
+		InitializeCriticalSection(&g_sc.screen_cs);
 		InitializeCriticalSection(&g_sc.input_cs);
 		g_cs_init = TRUE;
 		g_sc.bg_color = 0xFFFFFFFF;
@@ -52,6 +53,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved)
 		timeEndPeriod(1);
 		if (g_cs_init) {
 			DeleteCriticalSection(&g_sc.cs);
+			DeleteCriticalSection(&g_sc.screen_cs);
 			DeleteCriticalSection(&g_sc.input_cs);
 			g_cs_init = FALSE;
 		}
@@ -86,11 +88,13 @@ static void free_images(void)
 static void free_surfaces(void)
 {
 	EnterCriticalSection(&g_sc.cs);
+	EnterCriticalSection(&g_sc.screen_cs);
 	free_images();
 	sc_surface_free(&g_sc.layer);
 	sc_surface_free(&g_sc.offscreen);
 	sc_surface_free(&g_sc.screen);
 	g_sc.offscreen_flag = FALSE;
+	LeaveCriticalSection(&g_sc.screen_cs);
 	LeaveCriticalSection(&g_sc.cs);
 }
 
@@ -101,6 +105,7 @@ void SFUNC _lib_unload(void)
 {
 	sc_sound_shutdown();
 	sc_window_stop();
+	sc_pool_shutdown();
 	free_surfaces();
 	sc_gdiplus_term();
 	g_sc.started = FALSE;
@@ -112,6 +117,19 @@ void SFUNC _lib_unload(void)
 static SURFACE *target_surface(void)
 {
 	return g_sc.offscreen_flag ? &g_sc.offscreen : &g_sc.screen;
+}
+
+/*
+ * resolve_offscreen - perform the copy that startOffscreen() deferred (cs held)
+ */
+static void resolve_offscreen(void)
+{
+	if (g_sc.offscreen_pending) {
+		g_sc.offscreen_pending = FALSE;
+		EnterCriticalSection(&g_sc.screen_cs);
+		g_sc.offscreen_synced = sc_surface_draw_over(&g_sc.offscreen, &g_sc.screen);
+		LeaveCriticalSection(&g_sc.screen_cs);
+	}
 }
 
 /*
@@ -127,9 +145,20 @@ static SURFACE *draw_begin(void)
 		LeaveCriticalSection(&g_sc.cs);
 		return NULL;
 	}
+	if (g_sc.offscreen_flag) {
+		resolve_offscreen();
+	}
+	g_sc.offscreen_synced = FALSE;
+	if (!g_sc.offscreen_flag) {
+		/* drawing on the screen surface: keep repaints out until draw_end() */
+		EnterCriticalSection(&g_sc.screen_cs);
+	}
 	if (target->mask_mode != MASK_NONE) {
 		if (g_sc.layer.bmp == NULL || g_sc.layer.w != target->w || g_sc.layer.h != target->h) {
 			if (!sc_surface_create(&g_sc.layer, target->w, target->h)) {
+				if (!g_sc.offscreen_flag) {
+					LeaveCriticalSection(&g_sc.screen_cs);
+				}
 				LeaveCriticalSection(&g_sc.cs);
 				return NULL;
 			}
@@ -152,7 +181,8 @@ static void draw_end(void)
 		sc_mask_composite(target, &g_sc.layer, target->mask_mode);
 	}
 	if (!g_sc.offscreen_flag) {
-		InterlockedExchange(&g_sc.dirty, 1);
+		sc_screen_dirty();
+		LeaveCriticalSection(&g_sc.screen_cs);
 	}
 	LeaveCriticalSection(&g_sc.cs);
 }
@@ -220,20 +250,25 @@ int SFUNC _lib_func_startscreen(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, 
 	sc_sound_stop(SOUND_GROUP_ALL);
 
 	EnterCriticalSection(&g_sc.cs);
+	EnterCriticalSection(&g_sc.screen_cs);
 	free_images();
 	sc_surface_free(&g_sc.layer);
 	if (!sc_surface_create(&g_sc.screen, (int)w, (int)h) ||
 		!sc_surface_create(&g_sc.offscreen, (int)w, (int)h)) {
 		sc_surface_free(&g_sc.screen);
 		sc_surface_free(&g_sc.offscreen);
+		LeaveCriticalSection(&g_sc.screen_cs);
 		LeaveCriticalSection(&g_sc.cs);
 		lstrcpy(ErrStr, LIB_ERR_ALLOC);
 		return -1;
 	}
 	g_sc.offscreen_flag = FALSE;
+	g_sc.offscreen_synced = FALSE;
+	g_sc.offscreen_pending = FALSE;
 	g_sc.bg_color = color;
 	g_sc.fit = (fit != 0);
-	InterlockedExchange(&g_sc.dirty, 1);
+	sc_screen_dirty();
+	LeaveCriticalSection(&g_sc.screen_cs);
 	LeaveCriticalSection(&g_sc.cs);
 	sc_input_reset();
 
@@ -388,7 +423,9 @@ int SFUNC _lib_func_startoffscreen(EXECINFO *ei, VALUEINFO *param, VALUEINFO *re
 		return -1;
 	}
 	g_sc.offscreen_flag = TRUE;
-	sc_surface_draw_over(&g_sc.offscreen, &g_sc.screen);
+	/* the copy of the screen into the offscreen is done on first use (resolve_offscreen);
+	   nothing is copied when both already hold the same pixels or a full fill comes first */
+	g_sc.offscreen_pending = !g_sc.offscreen_synced;
 	LeaveCriticalSection(&g_sc.cs);
 	return 0;
 }
@@ -404,9 +441,28 @@ int SFUNC _lib_func_endoffscreen(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret,
 		lstrcpy(ErrStr, ERR_NO_SCREEN);
 		return -1;
 	}
+	if (g_sc.offscreen_flag) {
+		resolve_offscreen();
+	}
 	g_sc.offscreen_flag = FALSE;
-	sc_surface_draw_over(&g_sc.screen, &g_sc.offscreen);
-	InterlockedExchange(&g_sc.dirty, 1);
+	if (!g_sc.offscreen_synced) {
+		EnterCriticalSection(&g_sc.screen_cs);
+		if (g_sc.offscreen.opaque) {
+			/* the offscreen replaces the screen: swap the buffers instead of copying;
+			   the mask modes stay with their canvases */
+			SURFACE tmp = g_sc.screen;
+			int mask = g_sc.screen.mask_mode;
+			g_sc.screen = g_sc.offscreen;
+			g_sc.offscreen = tmp;
+			g_sc.screen.mask_mode = mask;
+			g_sc.offscreen.mask_mode = tmp.mask_mode;
+			g_sc.offscreen_synced = FALSE;
+		} else {
+			g_sc.offscreen_synced = sc_surface_draw_over(&g_sc.screen, &g_sc.offscreen);
+		}
+		sc_screen_dirty();
+		LeaveCriticalSection(&g_sc.screen_cs);
+	}
 	LeaveCriticalSection(&g_sc.cs);
 	return 0;
 }
@@ -472,14 +528,22 @@ int SFUNC _lib_func_clearrect(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TC
 	h = lib_to_float(lib_param(param, 3));
 	EnterCriticalSection(&g_sc.cs);
 	target = target_surface();
+	if (g_sc.offscreen_flag) {
+		resolve_offscreen();
+	}
+	g_sc.offscreen_synced = FALSE;
 	if (target->bmp == NULL) {
 		LeaveCriticalSection(&g_sc.cs);
 		lstrcpy(ErrStr, ERR_NO_SCREEN);
 		return -1;
 	}
+	if (!g_sc.offscreen_flag) {
+		EnterCriticalSection(&g_sc.screen_cs);
+	}
 	sc_clear_rect(target, x, y, w, h);
 	if (!g_sc.offscreen_flag) {
-		InterlockedExchange(&g_sc.dirty, 1);
+		sc_screen_dirty();
+		LeaveCriticalSection(&g_sc.screen_cs);
 	}
 	LeaveCriticalSection(&g_sc.cs);
 	return 0;
@@ -542,6 +606,13 @@ int SFUNC _lib_func_drawrect(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCH
 		lib_opt_number(opts, TEXT("width"), &width);
 		lib_opt_number(opts, TEXT("fill"), &fill);
 	}
+	EnterCriticalSection(&g_sc.cs);
+	if (g_sc.offscreen_flag && g_sc.offscreen_pending && fill != 0 &&
+		sc_fill_covers_surface(&g_sc.offscreen, x, y, w, h, color)) {
+		/* everything is overwritten: the deferred copy of the screen is not needed */
+		g_sc.offscreen_pending = FALSE;
+	}
+	LeaveCriticalSection(&g_sc.cs);
 	s = draw_begin();
 	if (s == NULL) {
 		lstrcpy(ErrStr, ERR_NO_SCREEN);
@@ -666,14 +737,22 @@ int SFUNC _lib_func_drawfill(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCH
 	color |= 0xFF000000;
 	EnterCriticalSection(&g_sc.cs);
 	target = target_surface();
+	if (g_sc.offscreen_flag) {
+		resolve_offscreen();
+	}
+	g_sc.offscreen_synced = FALSE;
 	if (target->bmp == NULL) {
 		LeaveCriticalSection(&g_sc.cs);
 		lstrcpy(ErrStr, ERR_NO_SCREEN);
 		return -1;
 	}
+	if (!g_sc.offscreen_flag) {
+		EnterCriticalSection(&g_sc.screen_cs);
+	}
 	sc_draw_flood_fill(target, x, y, color);
 	if (!g_sc.offscreen_flag) {
-		InterlockedExchange(&g_sc.dirty, 1);
+		sc_screen_dirty();
+		LeaveCriticalSection(&g_sc.screen_cs);
 	}
 	LeaveCriticalSection(&g_sc.cs);
 	return 0;
@@ -694,14 +773,22 @@ int SFUNC _lib_func_drawscroll(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, T
 	dy = lib_to_int(lib_param(param, 1));
 	EnterCriticalSection(&g_sc.cs);
 	target = target_surface();
+	if (g_sc.offscreen_flag) {
+		resolve_offscreen();
+	}
+	g_sc.offscreen_synced = FALSE;
 	if (target->bmp == NULL) {
 		LeaveCriticalSection(&g_sc.cs);
 		lstrcpy(ErrStr, ERR_NO_SCREEN);
 		return -1;
 	}
+	if (!g_sc.offscreen_flag) {
+		EnterCriticalSection(&g_sc.screen_cs);
+	}
 	sc_draw_scroll(target, dx, dy);
 	if (!g_sc.offscreen_flag) {
-		InterlockedExchange(&g_sc.dirty, 1);
+		sc_screen_dirty();
+		LeaveCriticalSection(&g_sc.screen_cs);
 	}
 	LeaveCriticalSection(&g_sc.cs);
 	return 0;
@@ -742,6 +829,9 @@ int SFUNC _lib_func_createimage(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, 
 	}
 	EnterCriticalSection(&g_sc.cs);
 	target = target_surface();
+	if (g_sc.offscreen_flag) {
+		resolve_offscreen();
+	}
 	if (target->bmp == NULL) {
 		LeaveCriticalSection(&g_sc.cs);
 		sc_surface_free(img);
@@ -945,6 +1035,9 @@ int SFUNC _lib_func_rgbtopoint(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, T
 	y = (int)floor(lib_to_float(lib_param(param, 1)));
 	EnterCriticalSection(&g_sc.cs);
 	target = target_surface();
+	if (g_sc.offscreen_flag) {
+		resolve_offscreen();
+	}
 	if (target->bmp == NULL) {
 		LeaveCriticalSection(&g_sc.cs);
 		lstrcpy(ErrStr, ERR_NO_SCREEN);

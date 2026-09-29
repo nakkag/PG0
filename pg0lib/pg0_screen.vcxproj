@@ -159,6 +159,7 @@
     <ClCompile Include="..\PG0\script_utility.c" />
     <ClCompile Include="lib_common.c" />
     <ClCompile Include="screen.c" />
+    <ClCompile Include="screen_d2d.c" />
     <ClCompile Include="screen_draw.c" />
     <ClCompile Include="screen_window.c" />
     <ClCompile Include="screen_sound.c" />
@@ -173,6 +174,7 @@
     <ClInclude Include="..\PG0\script_struct.h" />
     <ClInclude Include="..\PG0\script_utility.h" />
     <ClInclude Include="lib_common.h" />
+    <ClInclude Include="d2d1_c.h" />
     <ClInclude Include="gdiplus_flat.h" />
     <ClInclude Include="screen.h" />
   </ItemGroup>

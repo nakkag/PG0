@@ -175,6 +175,7 @@ BOOL sc_surface_create(SURFACE *s, int w, int h)
 	s->h = h;
 	s->g = NULL;
 	s->mask_mode = MASK_NONE;
+	s->opaque = FALSE;
 	return TRUE;
 }
 
@@ -244,23 +245,148 @@ void sc_surface_clear(SURFACE *s)
 	}
 	sc_surface_flush(s);
 	ZeroMemory(s->bits, (SIZE_T)s->w * s->h * sizeof(DWORD));
+	s->opaque = FALSE;
 }
 
 /*
- * sc_surface_draw_over - draw a surface over another one at (0, 0)
+ * sc_surface_draw_over - draw a surface over another one of the same size (source-over)
+ * returns TRUE when the source was fully opaque, i.e. dst now equals src
  */
-void sc_surface_draw_over(SURFACE *dst, SURFACE *src)
+BOOL sc_surface_draw_over(SURFACE *dst, SURFACE *src)
 {
-	GpGraphics *g = sc_surface_graphics(dst);
-	if (g == NULL || src->bmp == NULL) {
-		return;
+	const DWORD *s;
+	DWORD *d;
+	SIZE_T i, n;
+	BOOL all_opaque = TRUE;
+
+	if (dst->bits == NULL || src->bits == NULL || dst->w != src->w || dst->h != src->h) {
+		return FALSE;
 	}
 	sc_surface_flush(src);
-	GdipSetInterpolationMode(g, InterpolationModeNearestNeighbor);
-	GdipDrawImageRectRect(g, src->bmp, 0, 0, (REAL)src->w, (REAL)src->h,
-		0, 0, (REAL)src->w, (REAL)src->h, UnitPixel, NULL, NULL, NULL);
-	GdipSetInterpolationMode(g, InterpolationModeHighQualityBilinear);
 	sc_surface_flush(dst);
+	if (src->opaque) {
+		CopyMemory(dst->bits, src->bits, (SIZE_T)src->w * src->h * sizeof(DWORD));
+		dst->opaque = TRUE;
+		return TRUE;
+	}
+	s = src->bits;
+	d = dst->bits;
+	n = (SIZE_T)src->w * src->h;
+	for (i = 0; i < n; i++) {
+		DWORD p = s[i];
+		DWORD a = p >> 24;
+		if (a == 255) {
+			d[i] = p;
+		} else {
+			DWORD q, inv;
+			all_opaque = FALSE;
+			if (a == 0) {
+				continue;
+			}
+			q = d[i];
+			inv = 255 - a;
+			d[i] = ((((q >> 24) & 0xFF) * inv / 255 + a) << 24) |
+				((((q >> 16) & 0xFF) * inv / 255 + ((p >> 16) & 0xFF)) << 16) |
+				((((q >> 8) & 0xFF) * inv / 255 + ((p >> 8) & 0xFF)) << 8) |
+				((q & 0xFF) * inv / 255 + (p & 0xFF));
+		}
+	}
+	if (all_opaque) {
+		dst->opaque = TRUE;
+	}
+	return all_opaque;
+}
+
+/*
+ * blend_pixel - source-over of a straight color with the given alpha onto a premultiplied pixel
+ */
+static __inline void blend_pixel(DWORD *p, DWORD r, DWORD g, DWORD b, DWORD alpha)
+{
+	DWORD q = *p, inv = 255 - alpha;
+	*p = ((((q >> 24) & 0xFF) * inv / 255 + alpha) << 24) |
+		((((q >> 16) & 0xFF) * inv / 255 + r * alpha / 255) << 16) |
+		((((q >> 8) & 0xFF) * inv / 255 + g * alpha / 255) << 8) |
+		((q & 0xFF) * inv / 255 + b * alpha / 255);
+}
+
+/*
+ * fill_circle_fast - anti-aliased filled circle written straight into the bits
+ */
+static BOOL fill_circle_fast(SURFACE *s, double cx, double cy, double r, ARGB color)
+{
+	DWORD a = color >> 24, cr = (color >> 16) & 0xFF, cg = (color >> 8) & 0xFF, cb = color & 0xFF;
+	DWORD premul;
+	int y, y0, y1;
+
+	if (s->bits == NULL || !(r >= 0) || r > 1e6 || fabs(cx) > 1e8 || fabs(cy) > 1e8 || a == 0) {
+		return FALSE;
+	}
+	premul = (a << 24) | ((cr * a / 255) << 16) | ((cg * a / 255) << 8) | (cb * a / 255);
+	sc_surface_flush(s);
+	y0 = (int)floor(cy - r - 1);
+	y1 = (int)ceil(cy + r + 1);
+	if (y0 < 0) y0 = 0;
+	if (y1 > s->h) y1 = s->h;
+	for (y = y0; y < y1; y++) {
+		double dy = (y + 0.5) - cy;
+		double ro2 = (r + 0.5) * (r + 0.5) - dy * dy;
+		double ri2 = (r - 0.5) * (r - 0.5) - dy * dy;
+		double ro, ri;
+		int x, xs, xe, is, ie;
+		DWORD *row;
+		if (ro2 <= 0) {
+			continue;
+		}
+		ro = sqrt(ro2);
+		xs = (int)floor(cx - ro - 0.5);
+		xe = (int)ceil(cx + ro + 0.5);
+		if (xs < 0) xs = 0;
+		if (xe > s->w) xe = s->w;
+		if (xs >= xe) {
+			continue;
+		}
+		if (r >= 0.5 && ri2 > 0) {
+			ri = sqrt(ri2);
+			is = (int)ceil(cx - ri - 0.5);
+			ie = (int)floor(cx + ri - 0.5) + 1;
+			if (is < xs) is = xs;
+			if (ie > xe) ie = xe;
+		} else {
+			is = ie = xs;
+		}
+		row = s->bits + (SIZE_T)y * s->w;
+		for (x = xs; x < xe; x++) {
+			if (x >= is && x < ie) {
+				if (a == 255) {
+					row[x] = premul;
+				} else {
+					blend_pixel(row + x, cr, cg, cb, a);
+				}
+				continue;
+			}
+			{
+				double dx = (x + 0.5) - cx;
+				double cov = r - sqrt(dx * dx + dy * dy) + 0.5;
+				DWORD alpha;
+				if (cov <= 0) {
+					continue;
+				}
+				if (cov > 1) {
+					cov = 1;
+				}
+				alpha = (DWORD)(a * cov + 0.5);
+				if (alpha == 0) {
+					continue;
+				}
+				if (alpha == 255) {
+					row[x] = premul;
+				} else {
+					blend_pixel(row + x, cr, cg, cb, alpha);
+				}
+			}
+		}
+	}
+	return TRUE;
 }
 
 /*
@@ -306,6 +432,7 @@ void sc_mask_composite(SURFACE *dst, SURFACE *layer, int mode)
 	}
 	sc_surface_flush(dst);
 	sc_surface_flush(layer);
+	dst->opaque = FALSE;
 	n = (SIZE_T)dst->w * dst->h;
 	for (i = 0; i < n; i++) {
 		a = layer->bits[i] >> 24;
@@ -558,6 +685,62 @@ void sc_draw_line(SURFACE *s, double x1, double y1, double x2, double y2, ARGB c
 }
 
 /*
+ * fill_rect_fast - opaque fill of a pixel aligned rectangle straight into the bits
+ * (the same result as the anti-aliased fill, without the GDI+ overhead)
+ */
+static BOOL fill_rect_fast(SURFACE *s, double x, double y, double w, double h, ARGB color)
+{
+	int x1, y1, x2, y2, row, col;
+	DWORD *p;
+
+	if (s->bits == NULL || (color >> 24) != 0xFF) {
+		return FALSE;
+	}
+	if (x != floor(x) || y != floor(y) || w != floor(w) || h != floor(h)) {
+		return FALSE;
+	}
+	if (fabs(x) > 1e8 || fabs(y) > 1e8 || w > 1e8 || h > 1e8) {
+		return FALSE;
+	}
+	x1 = (int)x;
+	y1 = (int)y;
+	x2 = x1 + (int)w;
+	y2 = y1 + (int)h;
+	if (x1 < 0) x1 = 0;
+	if (y1 < 0) y1 = 0;
+	if (x2 > s->w) x2 = s->w;
+	if (y2 > s->h) y2 = s->h;
+	if (x1 >= x2 || y1 >= y2) {
+		return TRUE;
+	}
+	sc_surface_flush(s);
+	if (x1 == 0 && y1 == 0 && x2 == s->w && y2 == s->h) {
+		s->opaque = TRUE;
+	}
+	for (row = y1; row < y2; row++) {
+		p = s->bits + (SIZE_T)row * s->w + x1;
+		for (col = x1; col < x2; col++) {
+			*p++ = color;
+		}
+	}
+	return TRUE;
+}
+
+/*
+ * sc_fill_covers_surface - an opaque pixel aligned fill of the whole surface
+ */
+BOOL sc_fill_covers_surface(SURFACE *s, double x, double y, double w, double h, ARGB color)
+{
+	if ((color >> 24) != 0xFF || s->mask_mode != MASK_NONE) {
+		return FALSE;
+	}
+	if (x != floor(x) || y != floor(y) || w != floor(w) || h != floor(h)) {
+		return FALSE;
+	}
+	return (x <= 0 && y <= 0 && x + w >= s->w && y + h >= s->h);
+}
+
+/*
  * sc_draw_rect
  */
 void sc_draw_rect(SURFACE *s, double x, double y, double w, double h, ARGB color, double width, BOOL fill)
@@ -574,6 +757,9 @@ void sc_draw_rect(SURFACE *s, double x, double y, double w, double h, ARGB color
 	if (h < 0) {
 		y += h;
 		h = -h;
+	}
+	if (fill && fill_rect_fast(s, x, y, w, h, color)) {
+		return;
 	}
 	if (fill) {
 		GpSolidFill *brush = NULL;
@@ -630,6 +816,9 @@ void sc_draw_ellipse(SURFACE *s, double x, double y, double rx, double ry, doubl
 	}
 	rx = fabs(rx);
 	ry = fabs(ry);
+	if (fill && rx == ry && end - start >= 2 * SC_PI && fill_circle_fast(s, x, y, rx, color)) {
+		return;
+	}
 	if (GdipCreatePath(FillModeWinding, &path) != GpOk) {
 		return;
 	}
@@ -818,10 +1007,532 @@ void sc_clear_rect(SURFACE *s, double x, double y, double w, double h)
 	if (GdipCreateSolidFill(0, &brush) != GpOk) {
 		return;
 	}
+	s->opaque = FALSE;
 	GdipSetCompositingMode(g, CompositingModeSourceCopy);
 	GdipFillRectangle(g, brush, (REAL)x, (REAL)y, (REAL)w, (REAL)h);
 	GdipSetCompositingMode(g, CompositingModeSourceOver);
 	GdipDeleteBrush(brush);
+}
+
+/* ---- worker pool: row-parallel pixel loops ---- */
+/* Workers spin briefly for the next job before sleeping on a semaphore, so a burst
+   of drawing calls is served with almost no wake-up latency. Job fields are published
+   under pool_publishing while no worker is busy; completion is tracked per row. */
+#define POOL_MAX_THREADS		15
+#define POOL_DEFAULT_THREADS	7
+#define POOL_MIN_PIXELS			3000	/* pixels of work per worker */
+#define POOL_SPIN_US			150
+
+typedef void (*ROW_FN)(int y0, int y1, void *ctx);
+
+static HANDLE pool_threads[POOL_MAX_THREADS];
+static int pool_count = 0;
+static BOOL pool_checked = FALSE;
+static HANDLE pool_sem = NULL;
+static volatile LONG pool_quit = 0;
+static volatile LONG pool_generation = 0;
+static volatile LONG pool_publishing = 0;
+static volatile LONG pool_busy = 0;
+static volatile LONG pool_sleepers = 0;
+static volatile LONG pool_next = 0;
+static volatile LONG pool_rows = 0;
+static volatile LONG pool_remaining = 0;
+static LONG pool_chunk = 8;
+static ROW_FN pool_fn = NULL;
+static void *pool_ctx = NULL;
+static LARGE_INTEGER pool_freq;
+
+/*
+ * pool_run_chunks - process row chunks of the current job until none are left
+ */
+static void pool_run_chunks(void)
+{
+	for (;;) {
+		LONG y0 = InterlockedExchangeAdd(&pool_next, pool_chunk);
+		LONG rows = pool_rows;
+		LONG y1;
+		if (y0 >= rows) {
+			break;
+		}
+		y1 = y0 + pool_chunk;
+		if (y1 > rows) {
+			y1 = rows;
+		}
+		pool_fn((int)y0, (int)y1, pool_ctx);
+		InterlockedExchangeAdd(&pool_remaining, -(y1 - y0));
+	}
+}
+
+/*
+ * pool_thread
+ */
+static DWORD WINAPI pool_thread(LPVOID param)
+{
+	LONG seen = 0;
+
+	while (!pool_quit) {
+		if (pool_generation == seen) {
+			/* spin a little for the next job, then sleep */
+			LARGE_INTEGER t0, t;
+			BOOL found = FALSE;
+			QueryPerformanceCounter(&t0);
+			for (;;) {
+				int i;
+				for (i = 0; i < 64; i++) {
+					if (pool_generation != seen) {
+						found = TRUE;
+						break;
+					}
+					YieldProcessor();
+				}
+				if (found || pool_quit) {
+					break;
+				}
+				QueryPerformanceCounter(&t);
+				if ((t.QuadPart - t0.QuadPart) * 1000000 / pool_freq.QuadPart > POOL_SPIN_US) {
+					break;
+				}
+			}
+			if (!found) {
+				if (pool_quit) {
+					break;
+				}
+				InterlockedIncrement(&pool_sleepers);
+				if (pool_generation == seen) {
+					WaitForSingleObject(pool_sem, INFINITE);
+				}
+				InterlockedDecrement(&pool_sleepers);
+				continue;
+			}
+		}
+		InterlockedIncrement(&pool_busy);
+		if (pool_publishing) {
+			InterlockedDecrement(&pool_busy);
+			YieldProcessor();
+			continue;
+		}
+		seen = pool_generation;
+		pool_run_chunks();
+		InterlockedDecrement(&pool_busy);
+	}
+	return 0;
+}
+
+/*
+ * pool_init - start the workers (one per processor besides the caller)
+ */
+static void pool_init(void)
+{
+	SYSTEM_INFO si;
+	int i, n;
+
+	if (pool_checked) {
+		return;
+	}
+	pool_checked = TRUE;
+	QueryPerformanceFrequency(&pool_freq);
+	GetSystemInfo(&si);
+	n = (int)si.dwNumberOfProcessors - 1;
+	if (n > POOL_DEFAULT_THREADS) {
+		n = POOL_DEFAULT_THREADS;
+	}
+	{
+		/* PG0_SCREEN_THREADS overrides the number of worker threads (0: none) */
+		TCHAR buf[16];
+		if (GetEnvironmentVariable(TEXT("PG0_SCREEN_THREADS"), buf, 16) > 0) {
+			n = _ttoi(buf);
+		}
+	}
+	if (n > POOL_MAX_THREADS) {
+		n = POOL_MAX_THREADS;
+	}
+	if (n <= 0) {
+		return;
+	}
+	pool_sem = CreateSemaphore(NULL, 0, POOL_MAX_THREADS * 4, NULL);
+	if (pool_sem == NULL) {
+		return;
+	}
+	pool_quit = 0;
+	pool_generation = 0;
+	pool_publishing = 0;
+	pool_busy = 0;
+	pool_sleepers = 0;
+	for (i = 0; i < n; i++) {
+		pool_threads[pool_count] = CreateThread(NULL, 0, pool_thread, NULL, 0, NULL);
+		if (pool_threads[pool_count] == NULL) {
+			break;
+		}
+		pool_count++;
+	}
+}
+
+/*
+ * sc_pool_shutdown - end the workers
+ */
+void sc_pool_shutdown(void)
+{
+	int i;
+
+	if (pool_count > 0) {
+		InterlockedExchange(&pool_quit, 1);
+		InterlockedIncrement(&pool_generation);
+		ReleaseSemaphore(pool_sem, pool_count, NULL);
+		WaitForMultipleObjects(pool_count, pool_threads, TRUE, 3000);
+		for (i = 0; i < pool_count; i++) {
+			CloseHandle(pool_threads[i]);
+		}
+		pool_count = 0;
+	}
+	if (pool_sem != NULL) {
+		CloseHandle(pool_sem);
+		pool_sem = NULL;
+	}
+	pool_checked = FALSE;
+}
+
+/*
+ * parallel_rows - run fn over [0, rows) split across the workers and the caller
+ */
+static void parallel_rows(int rows, int pixels, ROW_FN fn, void *ctx)
+{
+	int workers, awake, wake;
+
+	if (rows <= 0) {
+		return;
+	}
+	pool_init();
+	workers = pixels / POOL_MIN_PIXELS;
+	if (workers > pool_count) {
+		workers = pool_count;
+	}
+	if (workers <= 0 || rows < 4) {
+		fn(0, rows, ctx);
+		return;
+	}
+	/* publish the job while no worker reads the fields */
+	InterlockedExchange(&pool_publishing, 1);
+	while (pool_busy != 0) {
+		YieldProcessor();
+	}
+	pool_fn = fn;
+	pool_ctx = ctx;
+	pool_rows = rows;
+	pool_chunk = rows / ((workers + 1) * 2);
+	if (pool_chunk < 2) pool_chunk = 2;
+	if (pool_chunk > 32) pool_chunk = 32;
+	pool_next = 0;
+	pool_remaining = rows;
+	MemoryBarrier();
+	InterlockedIncrement(&pool_generation);
+	InterlockedExchange(&pool_publishing, 0);
+	/* spinning workers pick the job up by themselves; wake sleepers only when needed */
+	awake = pool_count - pool_sleepers;
+	wake = workers - awake;
+	if (wake > 0) {
+		if (wake > pool_sleepers) {
+			wake = pool_sleepers;
+		}
+		if (wake > 0) {
+			ReleaseSemaphore(pool_sem, wake, NULL);
+		}
+	}
+	pool_run_chunks();
+	while (pool_remaining > 0) {
+		YieldProcessor();
+	}
+}
+
+/* ---- image drawing ---- */
+typedef struct _IMAGE_JOB {
+	SURFACE *dst;
+	SURFACE *src;
+	int x0;			/* destination bounding box [x0, x1) */
+	int x1;
+	int y0;			/* first destination row of the job (rows are relative to it) */
+	double cx;		/* destination center */
+	double cy;
+	double cos_a;
+	double sin_a;
+	double w;		/* destination size */
+	double h;
+	double su;		/* source pixels per destination pixel */
+	double sv;
+	DWORD alpha;	/* 0..256 */
+} IMAGE_JOB;
+
+/* two 8bit channels at once: x * m / 255 for m in 0..255 */
+#define MUL255_PAIR(x, m)		((((x) * (m) + 0x00800080) + ((((x) * (m) + 0x00800080) >> 8) & 0x00FF00FF)) >> 8 & 0x00FF00FF)
+/* two channels at once: linear interpolation with a weight in 0..256 */
+#define LERP_PAIR(a, b, t)		((((a) * (256 - (t)) + (b) * (t)) >> 8) & 0x00FF00FF)
+
+/*
+ * blend_premul - source-over of a premultiplied pixel
+ */
+static __inline void blend_premul(DWORD *d, DWORD s)
+{
+	DWORD a = s >> 24, q, inv, rb, ag;
+	if (a == 255) {
+		*d = s;
+		return;
+	}
+	if (a == 0) {
+		return;
+	}
+	q = *d;
+	inv = 255 - a;
+	rb = MUL255_PAIR(q & 0x00FF00FF, inv);
+	ag = MUL255_PAIR((q >> 8) & 0x00FF00FF, inv);
+	*d = (((ag << 8) | rb) + s);
+}
+
+/*
+ * scale_premul - premultiplied pixel times alpha (0..256)
+ */
+static __inline DWORD scale_premul(DWORD p, DWORD alpha)
+{
+	DWORD rb = ((p & 0x00FF00FF) * alpha >> 8) & 0x00FF00FF;
+	DWORD ag = (((p >> 8) & 0x00FF00FF) * alpha >> 8) & 0x00FF00FF;
+	return (ag << 8) | rb;
+}
+
+/*
+ * sample_bilinear - source sample at fixed point (16.16) source coordinates
+ */
+static __inline DWORD sample_bilinear(const SURFACE *src, LONG u, LONG v)
+{
+	const DWORD *bits = src->bits;
+	int sw = src->w, sh = src->h;
+	int ix, iy, ix1, iy1;
+	DWORD wx, wy, p00, p01, p10, p11, top, bottom;
+
+	u -= 32768;
+	v -= 32768;
+	ix = u >> 16;
+	iy = v >> 16;
+	wx = (u >> 8) & 0xFF;
+	wy = (v >> 8) & 0xFF;
+	ix1 = ix + 1;
+	iy1 = iy + 1;
+	if (ix < 0 || iy < 0 || ix1 >= sw || iy1 >= sh) {
+		if (ix < 0) ix = 0;
+		if (iy < 0) iy = 0;
+		if (ix1 < 0) ix1 = 0;
+		if (iy1 < 0) iy1 = 0;
+		if (ix >= sw) ix = sw - 1;
+		if (iy >= sh) iy = sh - 1;
+		if (ix1 >= sw) ix1 = sw - 1;
+		if (iy1 >= sh) iy1 = sh - 1;
+	}
+	p00 = bits[(SIZE_T)iy * sw + ix];
+	p01 = bits[(SIZE_T)iy * sw + ix1];
+	p10 = bits[(SIZE_T)iy1 * sw + ix];
+	p11 = bits[(SIZE_T)iy1 * sw + ix1];
+	if ((p00 | p01 | p10 | p11) >> 24 == 0) {
+		return 0;
+	}
+	if (p00 == p01 && p00 == p10 && p00 == p11) {
+		return p00;
+	}
+	top = LERP_PAIR(p00 & 0x00FF00FF, p01 & 0x00FF00FF, wx) |
+		(LERP_PAIR((p00 >> 8) & 0x00FF00FF, (p01 >> 8) & 0x00FF00FF, wx) << 8);
+	bottom = LERP_PAIR(p10 & 0x00FF00FF, p11 & 0x00FF00FF, wx) |
+		(LERP_PAIR((p10 >> 8) & 0x00FF00FF, (p11 >> 8) & 0x00FF00FF, wx) << 8);
+	return LERP_PAIR(top & 0x00FF00FF, bottom & 0x00FF00FF, wy) |
+		(LERP_PAIR((top >> 8) & 0x00FF00FF, (bottom >> 8) & 0x00FF00FF, wy) << 8);
+}
+
+/*
+ * span_limit - restrict [lo, hi) to the x where 0 <= a * x + b < len
+ */
+static void span_limit(double a, double b, double len, double *lo, double *hi)
+{
+	double t0, t1;
+
+	if (fabs(a) < 1e-12) {
+		if (b < 0 || b >= len) {
+			*hi = *lo;
+		}
+		return;
+	}
+	t0 = -b / a;
+	t1 = (len - b) / a;
+	if (a < 0) {
+		double t = t0;
+		t0 = t1;
+		t1 = t;
+	}
+	if (t0 > *lo) *lo = t0;
+	if (t1 < *hi) *hi = t1;
+}
+
+/*
+ * image_rows - draw the destination rows [y0, y1) of a scaled, rotated image
+ */
+static void image_rows(int y0, int y1, void *ctx)
+{
+	const IMAGE_JOB *job = (const IMAGE_JOB *)ctx;
+	const SURFACE *src = job->src;
+	SURFACE *dst = job->dst;
+	double hw = job->w / 2, hh = job->h / 2;
+	const LONG uw = (LONG)src->w << 16, vh = (LONG)src->h << 16;
+	const LONG du = (LONG)(job->cos_a * job->su * 65536.0);
+	const LONG dv = (LONG)(-job->sin_a * job->sv * 65536.0);
+	int y;
+
+	for (y = job->y0 + y0; y < job->y0 + y1; y++) {
+		double dy = (y + 0.5) - job->cy;
+		/* local coordinates as a function of x: lx = cos * x + bx, ly = -sin * x + by */
+		double bx = job->cos_a * (0.5 - job->cx) + job->sin_a * dy + hw;
+		double by = -job->sin_a * (0.5 - job->cx) + job->cos_a * dy + hh;
+		double lo = job->x0, hi = job->x1;
+		double lx, ly;
+		LONG u, v;
+		DWORD *row;
+		int x, xs, xe;
+		span_limit(job->cos_a, bx, job->w, &lo, &hi);
+		span_limit(-job->sin_a, by, job->h, &lo, &hi);
+		if (hi <= lo) {
+			continue;
+		}
+		xs = (int)ceil(lo);
+		xe = (int)ceil(hi);
+		if (xs < job->x0) xs = job->x0;
+		if (xe > job->x1) xe = job->x1;
+		if (xs >= xe) {
+			continue;
+		}
+		lx = job->cos_a * xs + bx;
+		ly = -job->sin_a * xs + by;
+		u = (LONG)(lx * job->su * 65536.0);
+		v = (LONG)(ly * job->sv * 65536.0);
+		row = dst->bits + (SIZE_T)y * dst->w;
+		for (x = xs; x < xe; x++, u += du, v += dv) {
+			DWORD p;
+			if ((ULONG)u >= (ULONG)uw || (ULONG)v >= (ULONG)vh) {
+				continue;
+			}
+			p = sample_bilinear(src, u, v);
+			if (p == 0) {
+				continue;
+			}
+			if (job->alpha < 256) {
+				p = scale_premul(p, job->alpha);
+			}
+			blend_premul(row + x, p);
+		}
+	}
+}
+
+/*
+ * copy_rows - unscaled, unrotated image at an integer position
+ */
+static void copy_rows(int y0, int y1, void *ctx)
+{
+	const IMAGE_JOB *job = (const IMAGE_JOB *)ctx;
+	const SURFACE *src = job->src;
+	SURFACE *dst = job->dst;
+	int sx0 = job->x0 - (int)job->cx;		/* cx, cy hold the integer destination origin here */
+	int sy0 = job->y0 - (int)job->cy;
+	int y, x, n = job->x1 - job->x0;
+
+	for (y = y0; y < y1; y++) {
+		const DWORD *s = src->bits + (SIZE_T)(sy0 + y) * src->w + sx0;
+		DWORD *d = dst->bits + (SIZE_T)(job->y0 + y) * dst->w + job->x0;
+		if (job->alpha < 256) {
+			for (x = 0; x < n; x++) {
+				blend_premul(d + x, scale_premul(s[x], job->alpha));
+			}
+		} else {
+			for (x = 0; x < n; x++) {
+				blend_premul(d + x, s[x]);
+			}
+		}
+	}
+}
+
+/*
+ * draw_image_fast - scaled/rotated image without GDI+
+ */
+static BOOL draw_image_fast(SURFACE *s, SURFACE *img, double x, double y, double w, double h,
+	BOOL rotate, double angle, double alpha)
+{
+	IMAGE_JOB job;
+	double cx, cy, ex, ey, c, sn;
+	int bx0, by0, bx1, by1;
+
+	if (s->bits == NULL || img->bits == NULL || !(w > 0) || !(h > 0) || img->w <= 0 || img->h <= 0) {
+		return FALSE;
+	}
+	if (fabs(x) > 1e7 || fabs(y) > 1e7 || w > 1e7 || h > 1e7) {
+		return FALSE;
+	}
+	if (alpha <= 0) {
+		return TRUE;
+	}
+	if (alpha > 1) {
+		alpha = 1;
+	}
+	sc_surface_flush(s);
+	sc_surface_flush(img);
+	job.dst = s;
+	job.src = img;
+	job.alpha = (DWORD)(alpha * 256.0 + 0.5);
+	if (job.alpha > 256) {
+		job.alpha = 256;
+	}
+	if (!rotate && w == img->w && h == img->h && x == floor(x) && y == floor(y)) {
+		/* plain copy at an integer position */
+		bx0 = (int)x;
+		by0 = (int)y;
+		bx1 = bx0 + img->w;
+		by1 = by0 + img->h;
+		if (bx0 < 0) bx0 = 0;
+		if (by0 < 0) by0 = 0;
+		if (bx1 > s->w) bx1 = s->w;
+		if (by1 > s->h) by1 = s->h;
+		if (bx0 >= bx1 || by0 >= by1) {
+			return TRUE;
+		}
+		job.x0 = bx0;
+		job.x1 = bx1;
+		job.y0 = by0;
+		job.cx = x;
+		job.cy = y;
+		parallel_rows(by1 - by0, (bx1 - bx0) * (by1 - by0), copy_rows, &job);
+		return TRUE;
+	}
+	c = rotate ? cos(angle) : 1.0;
+	sn = rotate ? sin(angle) : 0.0;
+	cx = x + w / 2;
+	cy = y + h / 2;
+	/* bounding box of the rotated rectangle */
+	ex = fabs(c) * w / 2 + fabs(sn) * h / 2;
+	ey = fabs(sn) * w / 2 + fabs(c) * h / 2;
+	bx0 = (int)floor(cx - ex);
+	by0 = (int)floor(cy - ey);
+	bx1 = (int)ceil(cx + ex) + 1;
+	by1 = (int)ceil(cy + ey) + 1;
+	if (bx0 < 0) bx0 = 0;
+	if (by0 < 0) by0 = 0;
+	if (bx1 > s->w) bx1 = s->w;
+	if (by1 > s->h) by1 = s->h;
+	if (bx0 >= bx1 || by0 >= by1) {
+		return TRUE;
+	}
+	job.x0 = bx0;
+	job.x1 = bx1;
+	job.y0 = by0;
+	job.cx = cx;
+	job.cy = cy;
+	job.cos_a = c;
+	job.sin_a = sn;
+	job.w = w;
+	job.h = h;
+	job.su = img->w / w;
+	job.sv = img->h / h;
+	parallel_rows(by1 - by0, (int)(w * h), image_rows, &job);
+	return TRUE;
 }
 
 /*
@@ -830,10 +1541,14 @@ void sc_clear_rect(SURFACE *s, double x, double y, double w, double h)
 void sc_draw_image(SURFACE *s, SURFACE *img, double x, double y, double w, double h,
 	BOOL rotate, double angle, double alpha)
 {
-	GpGraphics *g = sc_surface_graphics(s);
+	GpGraphics *g;
 	GpImageAttributes *attr = NULL;
 	GpColorMatrix cm;
 
+	if (draw_image_fast(s, img, x, y, w, h, rotate, angle, alpha)) {
+		return;
+	}
+	g = sc_surface_graphics(s);
 	if (g == NULL || img->bmp == NULL) {
 		return;
 	}
