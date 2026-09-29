@@ -1,0 +1,712 @@
+﻿Programming Language PG0.5
+Library Reference (Windows version)
+--
+# Introduction
+PG0 is a programming language designed for learning programming.
+PG0.5 extends the PG0 programming language.
+
+The Windows version of PG0 provides the same libraries as the web version (pg0.jp) as DLLs.
+Code written for the web version runs as is.
+* Screen API (screen.pg0)
+* Mathematical API (math.pg0)
+* String API (string.pg0)
+* Input/Output API (io.pg0)
+
+# Files
+The libraries are placed in the lib folder in the same directory as pg0.exe (pg0cmd.exe).
+	pg0.exe
+	pg0cmd.exe
+	lib\screen.pg0     Screen API (script that loads pg0_screen.dll)
+	lib\pg0_screen.dll
+	lib\math.pg0       Mathematical API
+	lib\pg0_math.dll
+	lib\string.pg0     String API
+	lib\pg0_string.dll
+	lib\io.pg0         Input/Output API
+	lib\pg0_io.dll
+Building the solution (PG0.sln) places them in the lib folder of the output directory.
+The source code is in the pg0lib folder. Sample scripts are in pg0lib\samples.
+(When installed with the installer, the sample scripts are in the sample\lib folder of the installation folder.)
+
+# Import
+The libraries can be used with the same import statements as the web version.
+	#import("lib/screen.pg0")
+	#import("lib/math.pg0")
+	#import("lib/string.pg0")
+	#import("lib/io.pg0")
+#import searches in the following order.
+	1) Relative path from the directory of the script file
+	2) Relative path from the current directory
+	3) Relative path from the directory of pg0.exe
+	4) Load as a library (DLL)
+	   Libraries are searched in the directory of the importing script, the current directory,
+	   and the directory of pg0.exe, in that order.
+Both "/" and "\" can be used as path separators.
+If the extension is .dll, the file is loaded as a library without searching for a script.
+
+# Differences from the web version
+* The screen is displayed in a separate window.
+	The screen window has the following buttons at the top right.
+		Sound         Turns sound on/off (the setting is saved)
+		Full screen   Switches to full screen. In full screen, a "restore" button is shown in the same place
+	The F11 key also toggles full screen. The F11 key cannot be read with inKey().
+	Closing the window stops the running script.
+	The screen is displayed with Direct2D (GPU). If Direct2D is not available, GDI is used.
+	Setting the environment variable PG0_SCREEN_GDI (to any value) forces display with GDI.
+	Scaling and rotation in drawImage() are processed with multiple threads (default: number of CPUs - 1, up to 7).
+	The number of threads can be changed with the environment variable PG0_SCREEN_THREADS (0 for a single thread, up to 15).
+	Drawing functions and window repainting run in separate threads,
+	and the window is repainted up to about 200 times per second.
+	The window position and size, the full screen state, and sound on/off are
+	saved in %LOCALAPPDATA%\pg0\pg0_screen.ini and restored the next time.
+* Values of saveValue() are saved in %LOCALAPPDATA%\pg0\values.
+	The values are stored separately for each script file name.
+	Scripts with the same file name share the storage area even if they are in different folders.
+	Scripts that have not been saved to a file share a common storage area.
+* When running with pg0cmd.exe, pressing the close button of the screen window terminates pg0cmd.exe.
+
+# Screen API (screen.pg0)
+Can be used with the following import statement.
+	#import("lib/screen.pg0")
+
+startScreen(width, height, option)
+	* Description
+		Starts the screen.
+		Displays a screen of the specified size in a separate window.
+	* Parameters
+		width - Screen width (number)
+		height - Screen height (number)
+		option - Specify options as an associative array.
+					{"color": Hexadecimal color code (string), "fit": Flag whether to adapt to screen size(number)}
+	* Return Value
+		0
+
+sleep(time)
+	* Description
+		Stops processing for a certain period of time.
+	* Parameters
+		time - Specify the stopping time in milliseconds as a numerical value.
+	* Return Value
+		0
+
+time()
+	* Description
+		Gets the current time (UTC).
+	* Parameters
+		None
+	* Return Value
+		Returns the number of milliseconds that have passed since January 1, 1970 00:00:00.
+
+timeString(time, format)
+	* Description
+		Format a time into a date/time string.
+	* Parameters
+		time - Number of milliseconds elapsed since January 1, 1970 00:00:00
+		format - date and time format. If omitted, the string will be formatted according to the locale.
+					YYYY - year
+					MM or M - month
+					DD or D - day
+					hh or h - hour
+					mm or m - minutes
+					ss or s - seconds
+	* Return Value
+		date and time string
+
+startOffscreen()
+	* Description
+		Start off-screen and draw the screen display off-screen.
+	* Parameters
+		None
+	* Return Value
+		0
+
+endOffscreen()
+	* Description
+		Exit off-screen and draw the contents of the off-screen to the screen.
+	* Parameters
+		None
+	* Return Value
+		0
+
+startMask(option)
+	* Description
+		Start mask drawing mode.
+		While in mask drawing mode, only the areas you draw on will remain visible; everything else will be transparent.
+	* Parameters
+		option - Specify options as an associative array.
+					{"destination": Mask destination (string)}
+					If you specify "out", the drawn area will become transparent.
+	* Return Value
+		0
+
+endMask()
+	* Description
+		Exit mask drawing mode.
+	* Parameters
+		None
+	* Return Value
+		0
+
+clearRect(x, y, width, height)
+	* Description
+		Makes the area transparent.
+	* Parameters
+		x - upper left horizontal coordinate (number)
+		y - vertical coordinate of top left (number)
+		width - width (number)
+		height - height (number)
+	* Return Value
+		0
+
+drawLine(x1, y1, x2, y2, option)
+	* Description
+		Draw a line.
+	* Parameters
+		x1 - starting horizontal coordinate (number)
+		y1 - starting vertical coordinate (number)
+		x2 - horizontal coordinate of end (number)
+		y2 - vertical coordinate of end (number)
+		option - Specify options as an associative array.
+					{"width": line width (number), "color": hexadecimal color code (string)}
+	* Return Value
+		0
+
+drawRect(x, y, width, height, option)
+	* Description
+		Draw a rectangle.
+	* Parameters
+		x - upper left horizontal coordinate (number)
+		y - vertical coordinate of top left (number)
+		width - width (number)
+		height - height (number)
+		option - Specify options as an associative array.
+					{"width": line width (number), "color": hexadecimal color code (string), "fill": fill (number)}
+					Setting the fill to 1 will fill the rectangle with the specified color.
+	* Return Value
+		0
+
+drawCircle(x, y, radiusX, option)
+	* Description
+		Draw a circle.
+	* Parameters
+		x - horizontal coordinate of the center of the circle (number)
+		y - vertical coordinate of the center of the circle (number)
+		radiusX - horizontal radius (number)
+		option - Specify options as an associative array.
+					{"width": line width (number), "color": hexadecimal color code (string), "fill": fill (number), "radius_y": vertical radius (number), "rotation": tilt of the circle (radians), "start": angle clockwise from the X-axis where the circle starts (radians), "end": angle clockwise from the X-axis where the circle ends (radians), "close": connect both ends of the arc (number)}
+					Setting fill to 1 will fill the circle with the specified color.
+					When radius_y is omitted, the radius is the same as radiusX.
+					Setting close to 1 connects both ends of the arc with a straight line.
+	* Return Value
+		0
+
+drawPolyline(coordinates, option)
+	* Description
+		Draw a series of straight lines connected by several coordinates.
+	* Parameters
+		coordinates - Array of coordinates
+						Ex) drawPolyline({{100, 100}, {200, 100}, {150, 50}}, {"close": 1}) // Triangle
+		option - Specify options as an associative array.
+					{"width": line width (number), "color": hexadecimal color code (string), "fill": fill (number), "close": connect the last line with the first line (number)}
+	* Return Value
+		0
+
+drawFill(x, y, color)
+	* Description
+		Fills the specified coordinates with the specified color.
+		Traces adjacent pixels and fills them with specified color.
+	* Parameters
+		x - horizontal coordinate (number) to start filling
+		y - vertical coordinate to start filling (number)
+		color - hexadecimal color code (string)
+	* Return Value
+		0
+
+drawScroll(x, y)
+	* Description
+		Scroll the screen.
+		Areas that extend beyond the screen will be displayed on the opposite side.
+	* Parameters
+		x - horizontal scroll amount (number)
+		y - vertical scroll amount (number)
+	* Return Value
+		0
+
+createImage(x, y, width, height, option)
+	* Description
+		Creates an image of the specified area.
+		The returned Image ID can be drawn with drawImage().
+	* Parameters
+		x - upper left horizontal coordinate (number)
+		y - vertical coordinate of top left (number)
+		width - width (number)
+		height - height (number)
+		option - Specify options as an associative array.
+					{"id": Image ID (number)}
+					If an id is specified, it replaces the existing image.
+	* Return Value
+		Image ID
+
+drawImage(id, x, y, option)
+	* Description
+		Draws an image of the specified Image ID.
+	* Parameters
+		id - Image ID
+		x - upper left horizontal coordinate (number)
+		y - vertical coordinate of top left (number)
+		option - Specify options as an associative array.
+					{"width": width (number), "height": height (number), "angle": drawing angle (radians), "alpha": transparency (number)}
+					When only one of width and height is specified, the other is the size of the original image.
+					alpha is specified between 0.0 and 1.0.
+	* Return Value
+		0
+
+drawText(text, x, y, option)
+	* Description
+		Draw text.
+	* Parameters
+		text - the text to draw (string)
+		x - starting horizontal coordinate (number)
+		y - starting vertical coordinate (number)
+		option - Specify options as an associative array.
+					{"width": line width (number), "color": hexadecimal color code (string), "fill": fill (number), "fontstyle": font style (string), "fontsize": font size (number), "fontface": font (string)}
+					The default for fill is 1, and if you specify 0, hollow characters will be drawn.
+					Specify the font style as normal, bold, italic, or oblique.
+	* Return Value
+		0
+
+measureText(text, option)
+	* Description
+		Gets the text drawing size.
+	* Parameters
+		text - text (string)
+		option - Specify options as an associative array.
+					{"fontstyle": font style (string), "fontsize": font size (number), "fontface": font (string)}
+					Specify the font style as normal, bold, italic, or oblique.
+	* Return Value
+		drawing size
+		{"width": width, "height": height}
+
+rgbToPoint(x, y)
+	* Description
+		Gets the color at the specified coordinates.
+	* Parameters
+		x - horizontal coordinate (number)
+		y - vertical coordinate (number)
+	* Return Value
+		RGB array
+		{"r": numbers up to 255 to indicate red, "g": numbers up to 255 to indicate green, "b": numbers up to 255 to indicate blue}
+
+rgbToHex(rgb)
+	* Description
+		Converts an RGB array to hexadecimal color code.
+	* Parameters
+		rgb - RGB array
+				{"r": numbers up to 255 to indicate red, "g": numbers up to 255 to indicate green, "b": numbers up to 255 to indicate blue}
+				The keys are case-insensitive.
+	* Return Value
+		Hexadecimal color code (string)
+
+hexToRgb(hex)
+	* Description
+		Converts a hexadecimal color code to an RGB array.
+	* Parameters
+		hex - Hexadecimal color code (string)
+	* Return Value
+		RGB array
+		{"r": numbers up to 255 to indicate red, "g": numbers up to 255 to indicate green, "b": numbers up to 255 to indicate blue}
+
+inTouch()
+	* Description
+		Returns the touch (mouse) position.
+	* Parameters
+		None
+	* Return Value
+		touch state
+		{"x": horizontal coordinate, "y": vertical coordinate, "touch": touch state, "button": button, "pos": {{horizontal coordinate, vertical coordinate}, ...}}
+		If the touch status is 0, it is not currently touched and will be the last touched coordinate.
+		For button, 0 is left click, 1 is middle (wheel) click, and 2 is right click.
+		pos contains multi-touch coordinates.
+
+inKey(key)
+	* Description
+		Returns keyboard input.
+	* Parameters
+		key - Specifies the key string to check if pressed.
+				If specified as an array, check that all key strings in the array are pressed.
+				The key string will be equivalent to JavaScript's KeyboardEvent.key.
+	* Return Value
+		If no argument is specified, an array of pressed key strings is returned.
+		If the argument is specified as a string, it returns 1 if the key is pressed and 0 if not.
+		If the argument is specified as an array, it returns 1 if all keys are pressed and 0 if any keys are not pressed.
+
+playSound(note, start, end, volume = 1)
+	* Description
+		Plays the specified frequency for the specified time.
+	* Parameters
+		note - frequency (number)
+				If a string is specified, it will be converted to the corresponding frequency. If you put a number after it, it will be converted to an octave.
+				'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'
+				When the octave is omitted it is 4. Flats (b) are not supported.
+					Ex) playSound("C4", 0, 500)
+		start - milliseconds until the sound starts (number)
+		end - length of the sound from start in milliseconds (number)
+		volume - volume, default is 1 (number)
+	* Return Value
+		0
+
+playMusic(notes, option)
+	* Description
+		Play multiple frequencies in sequence.
+	* Parameters
+		notes - Array of notes
+				{note, length, volume}
+				If a string is specified, it will be converted to the corresponding frequency. If you put a number after it, it will be converted to an octave.
+				'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'
+				When the octave is omitted it is 4. Flats (b) are not supported.
+					Ex) playMusic({{"C4", 500}, {"D4", 500}, {"E4", 500}})
+				volume is optional.
+
+				The following keys and values in the array have a special meaning.
+				start: start position, if several sounds are played at the same time, set the start position to 0 and another sound.
+					Ex) playMusic({{"C4", 800}, {"start": 0}, {"E4", 800}, {"start": 0}, {"G4", 800}})
+				volume: Volumes after this.
+		option - Specify options as an associative array.
+					{"repeat": repetition flag(number)}
+	* Return Value
+		0
+
+bgm(notes, option)
+	* Description
+		Plays background music.
+		Stops the background music that is playing, if any, then plays notes repeatedly.
+		Sound effects started with playSound() or playMusic() keep playing.
+		Without notes, stops the background music.
+			Ex) bgm({{"C4", 500}, {"E4", 500}, {"G4", 500}})
+			Ex) bgm() // stop the background music
+	* Parameters
+		notes - Array of notes in the same format as playMusic(), optional
+		option - Specify options in an associative array.
+					{"repeat": repeat flag (number)}
+					Default is 1 (repeat). 0 plays the notes once.
+	* Return Value
+		0
+
+stopSound()
+	* Description
+		Stop any sound that is playing.
+		Background music started with bgm() is stopped as well.
+	* Parameters
+		None
+	* Return Value
+		0
+
+# Mathematical API (math.pg0)
+Can be used with the following import statement.
+	#import("lib/math.pg0")
+
+abs(num)
+	* Description
+		Returns the absolute value.
+	* Parameters
+		num - number
+	* Return Value
+		Absolute value
+
+atan(num)
+	* Description
+		Returns the arctangent in radians.
+	* Parameters
+		num - number
+	* Return Value
+		arctangent of argument
+
+atan2(y, x)
+	* Description
+		Returns the angle from the origin to the point (x, y) in radians.
+		The angle is measured from the positive x axis and lies between -π and π.
+			Ex) atan2(1, 1) // 0.785... (45 degrees)
+	* Parameters
+		y - Vertical value
+		x - Horizontal value
+	* Return Value
+		Angle in radians
+
+cos(num)
+	* Description
+		Returns the cosine.
+	* Parameters
+		num - number
+	* Return Value
+		cosine of argument
+
+exp(num)
+	* Description
+		Returns e (the base of the natural logarithm) raised to the power of num.
+	* Parameters
+		num - number
+	* Return Value
+		e raised to the power of num
+
+log(num)
+	* Description
+		Returns the natural logarithm.
+	* Parameters
+		num - number
+	* Return Value
+		natural logarithm
+
+random(seed)
+	* Description
+		Returns a random number.
+		When seed is given, switches to a reproducible sequence that starts from that seed and returns its first value.
+		Following random() calls continue the same sequence.
+		Without a seed ever given, a different random number is returned each time.
+	* Parameters
+		seed - Seed of the sequence (number or string), optional
+	* Return Value
+		Random number greater than or equal to 0 and less than 1
+
+sign(num)
+	* Description
+		Returns a flag indicating whether the sign of a number is positive or negative.
+	* Parameters
+		num - number
+	* Return Value
+		1 - positive
+		-1 - negative
+		0 - zero
+
+sin(num)
+	* Description
+		Returns the sine.
+	* Parameters
+		num - number
+	* Return Value
+		sine of argument
+
+sqrt(num)
+	* Description
+		Returns the square root.
+	* Parameters
+		num - number
+	* Return Value
+		square root
+
+tan(num)
+	* Description
+		Returns the tangent.
+	* Parameters
+		num - number
+	* Return Value
+		tangent of argument
+
+pow(base, exponent)
+	* Description
+		Returns the base raised to the power of the exponent.
+	* Parameters
+		base - Base
+		exponent - Exponent
+	* Return Value
+		The base raised to the power of the exponent
+
+max(a, b, ...)
+	* Description
+		Returns the largest of the arguments.
+		When an array is given, its elements are compared.
+			Ex) max(1, 5, 3) // 5
+			Ex) max({4, 2, 9}) // 9
+	* Parameters
+		a, b, ... - Numbers or arrays of numbers
+	* Return Value
+		Largest value
+
+min(a, b, ...)
+	* Description
+		Returns the smallest of the arguments.
+		When an array is given, its elements are compared.
+	* Parameters
+		a, b, ... - Numbers or arrays of numbers
+	* Return Value
+		Smallest value
+
+floor(num)
+	* Description
+		Returns the largest integer less than or equal to the number (rounds down).
+			Ex) floor(2.7) // 2
+			Ex) floor(-2.7) // -3
+	* Parameters
+		num - Number
+	* Return Value
+		Integer
+
+ceil(num)
+	* Description
+		Returns the smallest integer greater than or equal to the number (rounds up).
+			Ex) ceil(2.1) // 3
+			Ex) ceil(-2.1) // -2
+	* Parameters
+		num - Number
+	* Return Value
+		Integer
+
+round(num)
+	* Description
+		Returns the number rounded to the nearest integer.
+			Ex) round(2.5) // 3
+			Ex) round(-2.5) // -2
+	* Parameters
+		num - Number
+	* Return Value
+		Integer
+
+hypot(x, y)
+	* Description
+		Returns the length of the hypotenuse (square root of x*x + y*y).
+			Ex) hypot(3, 4) // 5
+	* Parameters
+		x - Number
+		y - Number
+	* Return Value
+		Length of the hypotenuse
+
+# String API (string.pg0)
+Can be used with the following import statement.
+	#import("lib/string.pg0")
+
+trim(str)
+	* Description
+		Trims the front and back of a string.
+		The characters to be trimmed are whitespace characters such as spaces (" "), tabs ("\t"), line breaks and full-width spaces (the same as JavaScript's trim).
+	* Parameters
+		str - String to be trimmed
+	* Return Value
+		Trimmed string
+
+to_lower(str)
+	* Description
+		Converts English strings to lowercase.
+	* Parameters
+		str - String to be converted to lowercase.
+	* Return Value
+		String converted to lowercase
+
+to_upper(str)
+	* Description
+		Converts English strings to uppercase.
+	* Parameters
+		str - String to be converted to uppercase.
+	* Return Value
+		String converted to uppercase
+
+str_match(ptn, str)
+	* Description
+		Use wildcards to compare strings.
+		Match any multi-character string with "*", match any single character with "?".
+		The comparison is case-insensitive.
+	* Parameters
+		ptn - Pattern from which to compare (specify wildcard here)
+		str - String to be compared
+	* Return Value
+		Returns 1 if a match is found, 0 if no match is found.
+
+substring(str, begin, length = -1)
+	* Description
+		Extract substrings from a string.
+	* Parameters
+		str - String to be extracted
+		begin - Start index
+			(Negative numbers are indexed from the end of the string)
+		length - Length to be extracted (negative numbers will be the length to the end)
+	* Return Value
+		Extracted substrings.
+
+in_string(str, search, from = 0)
+	* Description
+		Searches for the position of a specified string within a string.
+	* Parameters
+		str - String to search in
+		search - String to search for
+		from - Index to start the search (a negative number is treated as 0).
+	* Return Value
+		Returns the index of the found string. If not found, returns -1.
+
+split(str, separator)
+	* Description
+		Split a string with a delimiter string.
+	* Parameters
+		str - String to be split
+		separator - delimiter string (an empty string splits into single characters)
+	* Return Value
+		Array containing the divided strings.
+
+# Input/Output API (io.pg0)
+Can be used with the following import statement.
+	#import("lib/io.pg0")
+
+println(line)
+	* Description
+		One line output to standard output.
+	* Parameters
+		line - The string to be output.
+	* Return Value
+		0
+
+wait(ms)
+	* Description
+		Pauses the program for the given number of milliseconds.
+		Does not need the screen library; the stop button interrupts it.
+	* Parameters
+		ms - Time to wait (milliseconds)
+	* Return Value
+		0
+
+saveValue(key, value)
+	* Description
+		Saves values.
+		The value to be saved can be a number, a string or an array.
+		The value is saved in %LOCALAPPDATA%\pg0\values.
+			New file - Common area.
+			File - Saved separately for each file name.
+	* Parameters
+		key - Key
+		value - Value to be saved.
+	* Return Value
+		0
+
+loadValue(key)
+	* Description
+		Loads the saved value.
+	* Parameters
+		key - Key
+	* Return Value
+		Saved value. 0 when nothing is saved.
+
+removeValue(key)
+	* Description
+		Remove saved values.
+	* Parameters
+		key - Key
+	* Return Value
+		0
+
+get_clipboard()
+	* Description
+		Get text from the clipboard.
+	* Parameters
+		None
+	* Return Value
+		Clipboard text
+
+set_clipboard(text)
+	* Description
+		Set text on the clipboard.
+	* Parameters
+		text - Text to be set on the clipboard.
+	* Return Value
+		Returns 1 on success, 0 on failure.
+
+--
+Copyright (C) 1996-2026 by Ohno Tomoaki. All rights reserved.
+    WEB SITE: https://nakka.com/
+    E-MAIL: nakka@nakka.com

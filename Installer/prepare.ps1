@@ -83,6 +83,7 @@ function Get-TargetFiles([string]$binDir) {
 		(Join-Path $RootDir "PG0\pg0.txt")                = "pg0.txt"
 		(Join-Path $RootDir "PG0\pg0.5.txt")              = "pg0.5.txt"
 		(Join-Path $RootDir "PG0\pg0.5_lib.txt")          = "pg0.5_lib.txt"
+		(Join-Path $RootDir "PG0\pg0.5_lib_eng.txt")      = "pg0.5_lib_eng.txt"
 		(Join-Path $RootDir "PG0\tutorial\tutorial.html") = "tutorial.html"
 		(Join-Path $RootDir "LICENSE")                    = "LICENSE.txt"
 	}

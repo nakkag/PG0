@@ -90,6 +90,7 @@ prepare.ps1 が以下のファイルを収集して ZIP にまとめ、インス
   pg0.txt              PG0 から収集 (PG0 の言語仕様)
   pg0.5.txt            PG0 から収集 (PG0.5 の言語仕様)
   pg0.5_lib.txt        PG0 から収集 (ライブラリ リファレンス)
+  pg0.5_lib_eng.txt    PG0 から収集 (ライブラリ リファレンス 英語版)
   tutorial.html        PG0\tutorial から収集 (チュートリアル)
   image\*.png          PG0\tutorial\image から収集 (チュートリアルの画像)
   sample\*.pg0         PG0\sample から収集 (サンプルスクリプト)
