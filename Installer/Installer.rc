@@ -1,0 +1,178 @@
+// PG0 Installer resource script.
+//
+#pragma code_page(65001)
+
+#include "winres.h"
+
+#include "instinfo.h"
+#include "resource.h"
+
+/////////////////////////////////////////////////////////////////////////////
+// Neutral resources
+
+LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+IDI_ICON_MAIN           ICON                    "..\\PG0\\icon1.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// RT_MANIFEST
+//
+
+1                       RT_MANIFEST             "res\\manifest.xml"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// RCDATA
+//
+// インストールするファイルをまとめたZIP (prepare.ps1 が生成)
+IDR_PAYLOAD             RCDATA                  "payload.zip"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+// 表示する文字列はすべて実行時に文字列リソースから設定する
+
+IDD_MAIN DIALOGEX 0, 0, 320, 192
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "PG0"
+FONT 9, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "", IDC_STATIC_TITLE, 12, 10, 296, 12
+    LTEXT           "", IDC_STATIC_DESC, 12, 26, 296, 36
+    LTEXT           "", IDC_STATIC_FOLDER, 12, 68, 296, 9
+    EDITTEXT        IDC_EDIT_PATH, 12, 79, 216, 14, ES_AUTOHSCROLL
+    PUSHBUTTON      "", IDC_BUTTON_BROWSE, 236, 78, 72, 16
+    CONTROL         "", IDC_CHECK_STARTMENU, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 12, 104, 296, 10
+    CONTROL         "", IDC_CHECK_DESKTOP, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 12, 118, 296, 10
+    CONTROL         "", IDC_CHECK_RUN, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 12, 104, 296, 10
+    CONTROL         "", IDC_PROGRESS, "msctls_progress32", WS_BORDER, 12, 138, 296, 10
+    LTEXT           "", IDC_STATIC_STATUS, 12, 152, 296, 9
+    DEFPUSHBUTTON   "", IDOK, 156, 166, 72, 15
+    PUSHBUTTON      "", IDCANCEL, 236, 166, 72, 15
+END
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION INST_VER_MAJOR,INST_VER_MINOR,INST_VER_REVISION,0
+ PRODUCTVERSION INST_VER_MAJOR,INST_VER_MINOR,INST_VER_REVISION,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "FileDescription", "PG0 Installer"
+            VALUE "FileVersion", INST_FILE_VERSION_STR
+            VALUE "InternalName", INST_FILE_NAME
+            VALUE "LegalCopyright", "Copyright (C) 1996-2026 by Ohno Tomoaki. All rights reserved."
+            VALUE "OriginalFilename", INST_FILE_NAME
+            VALUE "ProductName", "PG0"
+            VALUE "ProductVersion", INST_FILE_VERSION_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// Japanese (Japan) resources
+
+LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
+
+STRINGTABLE
+BEGIN
+    IDS_SETUP_TITLE         "PG0 セットアップ"
+    IDS_UNINSTALL_TITLE     "PG0 アンインストール"
+    IDS_HEADER              "PG0 Ver %s"
+    IDS_DESC_INSTALL        "PG0 をインストールします。\nインストール先のフォルダとオプションを指定して [インストール] をクリックしてください。"
+    IDS_DESC_UPDATE         "PG0 は既にインストールされています。\nインストール先のフォルダとオプションを確認して [更新] をクリックしてください。"
+    IDS_DESC_COMPLETE       "PG0 のインストールが完了しました。"
+    IDS_FOLDER              "インストール先のフォルダ(&F):"
+    IDS_BROWSE              "参照(&B)..."
+    IDS_CHECK_STARTMENU     "スタートメニューにショートカットを作成する(&M)"
+    IDS_CHECK_DESKTOP       "デスクトップにショートカットを作成する(&D)"
+    IDS_CHECK_RUN           "PG0 を起動する(&R)"
+    IDS_BUTTON_INSTALL      "インストール(&I)"
+    IDS_BUTTON_UPDATE       "更新(&U)"
+    IDS_BUTTON_CANCEL       "キャンセル"
+    IDS_BUTTON_FINISH       "完了(&F)"
+    IDS_SELECT_FOLDER       "インストール先のフォルダを選択してください。"
+    IDS_STATUS_EXTRACT      "ファイルをコピーしています..."
+    IDS_STATUS_SHORTCUT     "ショートカットを作成しています..."
+    IDS_STATUS_REGIST       "アプリの一覧に登録しています..."
+    IDS_CONFIRM_CANCEL      "インストールを中止しますか?"
+    IDS_CONFIRM_UNINSTALL   "PG0 をアンインストールします。\nよろしいですか?"
+    IDS_CONFIRM_DELETE_DATA "設定と保存した値のデータも削除しますか?"
+    IDS_UNINSTALL_COMPLETE  "PG0 のアンインストールが完了しました。"
+    IDS_ERR_PATH_EMPTY      "インストール先のフォルダを入力してください。"
+    IDS_ERR_PAYLOAD         "インストールするファイルの読み込みに失敗しました。"
+    IDS_ERR_CREATE_DIR      "フォルダを作成できませんでした。\n%s"
+    IDS_ERR_EXTRACT         "ファイルを展開できませんでした。\n%s"
+    IDS_ERR_REGIST          "アプリの一覧に登録できませんでした。"
+    IDS_ERR_NOT_INSTALLED   "PG0 はインストールされていません。"
+    IDS_ERR_RUN             "PG0 を起動できませんでした。"
+    IDS_RUNNING             "PG0 が起動中です。\nPG0 を終了してから [再試行] をクリックしてください。"
+    IDS_FILE_LOCKED         "ファイルを更新できませんでした。\n%s\n\nPG0 が起動中の場合は、PG0 を終了してから [再試行] をクリックしてください。"
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+STRINGTABLE
+BEGIN
+    IDS_SETUP_TITLE         "PG0 Setup"
+    IDS_UNINSTALL_TITLE     "PG0 Uninstall"
+    IDS_HEADER              "PG0 Ver %s"
+    IDS_DESC_INSTALL        "PG0 will be installed on your computer.\nChoose the destination folder and the options, then click [Install]."
+    IDS_DESC_UPDATE         "PG0 is already installed.\nCheck the destination folder and the options, then click [Update]."
+    IDS_DESC_COMPLETE       "PG0 has been installed successfully."
+    IDS_FOLDER              "&Destination folder:"
+    IDS_BROWSE              "&Browse..."
+    IDS_CHECK_STARTMENU     "Create a shortcut in the Start &menu"
+    IDS_CHECK_DESKTOP       "Create a shortcut on the &desktop"
+    IDS_CHECK_RUN           "&Run PG0"
+    IDS_BUTTON_INSTALL      "&Install"
+    IDS_BUTTON_UPDATE       "&Update"
+    IDS_BUTTON_CANCEL       "Cancel"
+    IDS_BUTTON_FINISH       "&Finish"
+    IDS_SELECT_FOLDER       "Select the destination folder."
+    IDS_STATUS_EXTRACT      "Copying files..."
+    IDS_STATUS_SHORTCUT     "Creating shortcuts..."
+    IDS_STATUS_REGIST       "Registering the application..."
+    IDS_CONFIRM_CANCEL      "Do you want to cancel the installation?"
+    IDS_CONFIRM_UNINSTALL   "PG0 will be uninstalled.\nAre you sure?"
+    IDS_CONFIRM_DELETE_DATA "Do you also want to delete the settings and the saved values?"
+    IDS_UNINSTALL_COMPLETE  "PG0 has been uninstalled successfully."
+    IDS_ERR_PATH_EMPTY      "Enter the destination folder."
+    IDS_ERR_PAYLOAD         "Failed to read the files to install."
+    IDS_ERR_CREATE_DIR      "Failed to create the folder.\n%s"
+    IDS_ERR_EXTRACT         "Failed to extract the file.\n%s"
+    IDS_ERR_REGIST          "Failed to register the application."
+    IDS_ERR_NOT_INSTALLED   "PG0 is not installed."
+    IDS_ERR_RUN             "Failed to start PG0."
+    IDS_RUNNING             "PG0 is running.\nExit PG0, and then click [Retry]."
+    IDS_FILE_LOCKED         "Failed to update the file.\n%s\n\nIf PG0 is running, exit PG0 and then click [Retry]."
+END
