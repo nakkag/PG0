@@ -36,6 +36,7 @@ typedef struct _SND_TRACK {
 /* Global Variables */
 static CRITICAL_SECTION snd_cs;
 static BOOL snd_cs_init = FALSE;
+static volatile BOOL snd_failed = FALSE;
 static HANDLE snd_thread = NULL;
 static HANDLE snd_event = NULL;
 static volatile LONG snd_quit = 0;
@@ -102,7 +103,7 @@ static void fill_buffer(short *buf)
 				const SC_NOTE *note = &track->notes[n];
 				double local = t - note->start;
 				double phase;
-				if (local < 0 || local >= note->len || note->freq <= 0) {
+				if (local < 0 || local >= note->len || !(note->freq > 0 && note->freq < SND_RATE)) {
 					continue;
 				}
 				phase = local / 1000.0 * note->freq;
@@ -150,7 +151,9 @@ static DWORD WINAPI sound_thread(LPVOID param)
 	fmt.nBlockAlign = fmt.nChannels * fmt.wBitsPerSample / 8;
 	fmt.nAvgBytesPerSec = fmt.nSamplesPerSec * fmt.nBlockAlign;
 	if (waveOutOpen(&snd_out, WAVE_MAPPER, &fmt, (DWORD_PTR)snd_event, 0, CALLBACK_EVENT) != MMSYSERR_NOERROR) {
+		/* no output device: sc_sound_play() stops queueing tracks nobody would consume */
 		snd_out = NULL;
+		snd_failed = TRUE;
 		return 0;
 	}
 	ZeroMemory(snd_hdr, sizeof(snd_hdr));
@@ -188,10 +191,16 @@ static DWORD WINAPI sound_thread(LPVOID param)
 static BOOL sound_start(void)
 {
 	if (snd_thread != NULL) {
-		return TRUE;
+		return !snd_failed;
+	}
+	/* the critical section must exist before the mixer thread can race for it */
+	if (!snd_cs_init) {
+		InitializeCriticalSection(&snd_cs);
+		snd_cs_init = TRUE;
 	}
 	snd_quit = 0;
 	snd_pos = 0;
+	snd_failed = FALSE;
 	snd_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 	if (snd_event == NULL) {
 		return FALSE;

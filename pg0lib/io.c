@@ -30,7 +30,14 @@ typedef struct _RECORD {
 	struct _RECORD *next;
 } RECORD;
 
+#define MAX_DEPTH				64
+#define MAX_DIGITS				9
+#define SHARE_RETRY				20
+#define SHARE_WAIT				25
+
 /* Global Variables */
+// the store could not be read because another instance holds it (saving must not overwrite it)
+static BOOL store_busy = FALSE;
 
 /* Local Function Prototypes */
 
@@ -39,16 +46,25 @@ typedef struct _RECORD {
  */
 BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved)
 {
-	switch (reason) {
-	case DLL_PROCESS_ATTACH:
+	if (reason == DLL_PROCESS_ATTACH) {
 		DisableThreadLibraryCalls(hinst);
-		timeBeginPeriod(1);
-		break;
-	case DLL_PROCESS_DETACH:
-		timeEndPeriod(1);
-		break;
 	}
 	return TRUE;
+}
+
+/*
+ * console_host - the program is a console program (its stdout adds the CR itself)
+ */
+static BOOL console_host(void)
+{
+	static int console = -1;
+
+	if (console < 0) {
+		IMAGE_DOS_HEADER *dos = (IMAGE_DOS_HEADER *)GetModuleHandle(NULL);
+		IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)((BYTE *)dos + dos->e_lfanew);
+		console = (nt->OptionalHeader.Subsystem == IMAGE_SUBSYSTEM_WINDOWS_CUI);
+	}
+	return console;
 }
 
 /*
@@ -57,8 +73,6 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved)
 int SFUNC _lib_func_println(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHAR *ErrStr)
 {
 	TCHAR *str, *line;
-	DWORD mode;
-	BOOL console;
 
 	if (param == NULL) {
 		return -2;
@@ -68,8 +82,7 @@ int SFUNC _lib_func_println(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHA
 		lstrcpy(ErrStr, LIB_ERR_ALLOC);
 		return -1;
 	}
-	console = (GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &mode) != 0);
-	line = alloc_join(str, console ? TEXT("\n") : TEXT("\r\n"));
+	line = alloc_join(str, console_host() ? TEXT("\n") : TEXT("\r\n"));
 	mem_free(&str);
 	if (line == NULL) {
 		lstrcpy(ErrStr, LIB_ERR_ALLOC);
@@ -94,7 +107,10 @@ int SFUNC _lib_func_wait(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHAR *
 	if (_isnan(time) || time <= 0) {
 		return 0;
 	}
+	// a 1ms timer only while waiting
+	timeBeginPeriod(1);
 	lib_sleep(ei, time);
+	timeEndPeriod(1);
 	return 0;
 }
 
@@ -304,28 +320,38 @@ static void serialize(VALUEINFO *vi, TCHAR **buf, int *len, int *size)
 /*
  * deserialize - text to value (returns the position after the value)
  */
-static const TCHAR *deserialize(const TCHAR *p, VALUEINFO *vi);
+static const TCHAR *deserialize(const TCHAR *p, VALUEINFO *vi, const int depth);
 
+/*
+ * read_length - "<digits>:" of a string or array (-1 when it is not a valid length)
+ */
 static const TCHAR *read_length(const TCHAR *p, int *len)
 {
+	int digits = 0;
+
 	*len = 0;
 	while (*p >= TEXT('0') && *p <= TEXT('9')) {
-		*len = *len * 10 + (*p - TEXT('0'));
+		if (++digits > MAX_DIGITS) {
+			*len = -1;
+		} else if (*len >= 0) {
+			*len = *len * 10 + (*p - TEXT('0'));
+		}
 		p++;
 	}
-	if (*p == TEXT(':')) {
-		p++;
+	if (digits == 0 || *p != TEXT(':')) {
+		*len = -1;
+		return p;
 	}
-	return p;
+	return p + 1;
 }
 
-static const TCHAR *deserialize(const TCHAR *p, VALUEINFO *vi)
+static const TCHAR *deserialize(const TCHAR *p, VALUEINFO *vi, const int depth)
 {
 	VALUEINFO *top = NULL, *last = NULL, *e;
 	TCHAR *tmp;
 	int len, cnt, i;
 
-	if (p == NULL) {
+	if (p == NULL || depth > MAX_DEPTH) {
 		return NULL;
 	}
 	switch (*p) {
@@ -340,9 +366,10 @@ static const TCHAR *deserialize(const TCHAR *p, VALUEINFO *vi)
 		return (*p == TEXT(';')) ? p + 1 : p;
 
 	case TEXT('s'):
+		// a corrupt file must not make a length beyond the text
 		p = read_length(p + 1, &len);
-		if (lstrlen(p) < len) {
-			len = lstrlen(p);
+		if (len < 0 || lstrlen(p) < len) {
+			return NULL;
 		}
 		tmp = alloc_copy_n((TCHAR *)p, len);
 		if (tmp == NULL) {
@@ -354,6 +381,9 @@ static const TCHAR *deserialize(const TCHAR *p, VALUEINFO *vi)
 
 	case TEXT('a'):
 		p = read_length(p + 1, &cnt);
+		if (cnt < 0) {
+			return NULL;
+		}
 		for (i = 0; i < cnt && p != NULL && *p != TEXT('\0'); i++) {
 			e = AllocValue();
 			if (e == NULL) {
@@ -361,8 +391,10 @@ static const TCHAR *deserialize(const TCHAR *p, VALUEINFO *vi)
 			}
 			if (*p == TEXT('n')) {
 				p = read_length(p + 1, &len);
-				if (lstrlen(p) < len) {
-					len = lstrlen(p);
+				if (len < 0 || lstrlen(p) < len) {
+					FreeValueList(e);
+					p = NULL;
+					break;
 				}
 				tmp = alloc_copy_n((TCHAR *)p, len);
 				if (tmp != NULL) {
@@ -371,7 +403,7 @@ static const TCHAR *deserialize(const TCHAR *p, VALUEINFO *vi)
 				}
 				p += len;
 			}
-			p = deserialize(p, e);
+			p = deserialize(p, e, depth + 1);
 			lib_list_append(&top, &last, e);
 		}
 		lib_set_array(vi, top);
@@ -391,8 +423,19 @@ static RECORD *load_records(const TCHAR *path)
 	BYTE *raw;
 	TCHAR *buf, *p, *r, *tab;
 
-	hFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	int retry;
+
+	// another instance may be replacing the file at this moment
+	store_busy = FALSE;
+	for (retry = 0; ; retry++) {
+		hFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (hFile != INVALID_HANDLE_VALUE || GetLastError() != ERROR_SHARING_VIOLATION || retry >= SHARE_RETRY) {
+			break;
+		}
+		Sleep(SHARE_WAIT);
+	}
 	if (hFile == INVALID_HANDLE_VALUE) {
+		store_busy = (GetLastError() == ERROR_SHARING_VIOLATION);
 		return NULL;
 	}
 	size = GetFileSize(hFile, NULL);
@@ -400,6 +443,8 @@ static RECORD *load_records(const TCHAR *path)
 		CloseHandle(hFile);
 		return NULL;
 	}
+	// whole characters only
+	size &= ~(DWORD)1;
 	raw = mem_alloc(size + sizeof(TCHAR));
 	if (raw == NULL) {
 		CloseHandle(hFile);
@@ -409,6 +454,7 @@ static RECORD *load_records(const TCHAR *path)
 		read = 0;
 	}
 	CloseHandle(hFile);
+	read &= ~(DWORD)1;
 	*(TCHAR *)(raw + read) = TEXT('\0');
 	buf = (TCHAR *)raw;
 	if (*buf == 0xFEFF) {
@@ -445,20 +491,22 @@ static RECORD *load_records(const TCHAR *path)
 }
 
 /*
- * save_records - write the value store
+ * save_records - write the value store (a temporary file replaces the old one, so a crash
+ *                or a second instance never leaves it half written)
  */
-static void save_records(const TCHAR *path, RECORD *top)
+static BOOL save_records(const TCHAR *path, RECORD *top)
 {
 	RECORD *rec;
 	HANDLE hFile;
 	DWORD written;
 	TCHAR *buf = NULL;
-	int len = 0, size = 0;
+	TCHAR tmp_path[MAX_PATH + 8];
+	int len = 0, size = 0, retry;
 	TCHAR bom = 0xFEFF;
+	BOOL ok;
 
 	if (top == NULL) {
-		DeleteFile(path);
-		return;
+		return (DeleteFile(path) || GetLastError() == ERROR_FILE_NOT_FOUND);
 	}
 	for (rec = top; rec != NULL; rec = rec->next) {
 		escape_append(&buf, &len, &size, rec->key);
@@ -467,15 +515,69 @@ static void save_records(const TCHAR *path, RECORD *top)
 		append_text(&buf, &len, &size, TEXT("\n"));
 	}
 	if (buf == NULL) {
-		return;
+		return FALSE;
 	}
-	hFile = CreateFile(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (hFile != INVALID_HANDLE_VALUE) {
-		WriteFile(hFile, &bom, sizeof(TCHAR), &written, NULL);
-		WriteFile(hFile, buf, sizeof(TCHAR) * len, &written, NULL);
-		CloseHandle(hFile);
+	wsprintf(tmp_path, TEXT("%s.tmp"), path);
+	hFile = CreateFile(tmp_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile == INVALID_HANDLE_VALUE) {
+		mem_free(&buf);
+		return FALSE;
 	}
+	ok = WriteFile(hFile, &bom, sizeof(TCHAR), &written, NULL) && written == sizeof(TCHAR) &&
+		WriteFile(hFile, buf, sizeof(TCHAR) * len, &written, NULL) && written == sizeof(TCHAR) * len;
+	CloseHandle(hFile);
 	mem_free(&buf);
+	// a reader of the old file makes the replacement fail for a moment
+	for (retry = 0; ok; retry++) {
+		if (MoveFileEx(tmp_path, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+			return TRUE;
+		}
+		if (GetLastError() != ERROR_SHARING_VIOLATION || retry >= SHARE_RETRY) {
+			break;
+		}
+		Sleep(SHARE_WAIT);
+	}
+	DeleteFile(tmp_path);
+	return FALSE;
+}
+
+/*
+ * lock_store - one instance at a time reads, changes and writes a store
+ *              (two scripts with the same name can run at the same time)
+ */
+static HANDLE lock_store(const TCHAR *path)
+{
+	TCHAR name[MAX_PATH + 16];
+	TCHAR *p;
+	HANDLE hMutex;
+
+	wsprintf(name, TEXT("Local\\pg0_values_%s"), path);
+	for (p = name + 6; *p != TEXT('\0'); p++) {
+		if (*p == TEXT('\\') || *p == TEXT('/')) {
+			*p = TEXT('_');
+		}
+	}
+	CharLowerBuff(name + 6, lstrlen(name + 6));
+	hMutex = CreateMutex(NULL, FALSE, name);
+	if (hMutex == NULL) {
+		return NULL;
+	}
+	if (WaitForSingleObject(hMutex, 5000) == WAIT_FAILED) {
+		CloseHandle(hMutex);
+		return NULL;
+	}
+	return hMutex;
+}
+
+/*
+ * unlock_store
+ */
+static void unlock_store(HANDLE hMutex)
+{
+	if (hMutex != NULL) {
+		ReleaseMutex(hMutex);
+		CloseHandle(hMutex);
+	}
 }
 
 /*
@@ -498,8 +600,9 @@ static void free_records(RECORD *top)
  */
 static RECORD *find_record(RECORD *top, const TCHAR *key)
 {
+	// exact comparison like the web version (lstrcmp ignores some characters)
 	for (; top != NULL; top = top->next) {
-		if (lstrcmp(top->key, key) == 0) {
+		if (_tcscmp(top->key, key) == 0) {
 			return top;
 		}
 	}
@@ -514,7 +617,7 @@ static RECORD *remove_record(RECORD *top, const TCHAR *key)
 	RECORD *rec, *prev = NULL;
 
 	for (rec = top; rec != NULL; prev = rec, rec = rec->next) {
-		if (lstrcmp(rec->key, key) == 0) {
+		if (_tcscmp(rec->key, key) == 0) {
 			if (prev == NULL) {
 				top = rec->next;
 			} else {
@@ -534,9 +637,11 @@ static RECORD *remove_record(RECORD *top, const TCHAR *key)
 int SFUNC _lib_func_savevalue(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHAR *ErrStr)
 {
 	RECORD *top, *rec;
+	HANDLE hLock;
 	TCHAR path[MAX_PATH + 1];
 	TCHAR *key, *value = NULL;
 	int len = 0, size = 0;
+	BOOL saved;
 
 	if (lib_param_count(param) < 2) {
 		return -2;
@@ -553,7 +658,15 @@ int SFUNC _lib_func_savevalue(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TC
 		lstrcpy(ErrStr, LIB_ERR_ALLOC);
 		return -1;
 	}
+	hLock = lock_store(path);
 	top = load_records(path);
+	if (store_busy) {
+		unlock_store(hLock);
+		mem_free(&key);
+		mem_free(&value);
+		lstrcpy(ErrStr, TEXT("Storage error"));
+		return -1;
+	}
 	rec = find_record(top, key);
 	if (rec != NULL) {
 		mem_free(&rec->value);
@@ -562,6 +675,7 @@ int SFUNC _lib_func_savevalue(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TC
 	} else {
 		rec = mem_calloc(sizeof(RECORD));
 		if (rec == NULL) {
+			unlock_store(hLock);
 			free_records(top);
 			mem_free(&key);
 			mem_free(&value);
@@ -573,8 +687,13 @@ int SFUNC _lib_func_savevalue(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TC
 		rec->next = top;
 		top = rec;
 	}
-	save_records(path, top);
+	saved = save_records(path, top);
+	unlock_store(hLock);
 	free_records(top);
+	if (!saved) {
+		lstrcpy(ErrStr, TEXT("Storage error"));
+		return -1;
+	}
 	return 0;
 }
 
@@ -601,7 +720,7 @@ int SFUNC _lib_func_loadvalue(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TC
 	top = load_records(path);
 	rec = find_record(top, key);
 	if (rec != NULL) {
-		deserialize(rec->value, ret);
+		deserialize(rec->value, ret, 0);
 	}
 	free_records(top);
 	mem_free(&key);
@@ -614,8 +733,10 @@ int SFUNC _lib_func_loadvalue(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TC
 int SFUNC _lib_func_removevalue(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHAR *ErrStr)
 {
 	RECORD *top;
+	HANDLE hLock;
 	TCHAR path[MAX_PATH + 1];
 	TCHAR *key;
+	BOOL saved;
 
 	if (param == NULL) {
 		return -2;
@@ -628,11 +749,23 @@ int SFUNC _lib_func_removevalue(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, 
 		lstrcpy(ErrStr, LIB_ERR_ALLOC);
 		return -1;
 	}
+	hLock = lock_store(path);
 	top = load_records(path);
+	if (store_busy) {
+		unlock_store(hLock);
+		mem_free(&key);
+		lstrcpy(ErrStr, TEXT("Storage error"));
+		return -1;
+	}
 	top = remove_record(top, key);
-	save_records(path, top);
+	saved = save_records(path, top);
+	unlock_store(hLock);
 	free_records(top);
 	mem_free(&key);
+	if (!saved) {
+		lstrcpy(ErrStr, TEXT("Storage error"));
+		return -1;
+	}
 	return 0;
 }
 
@@ -652,8 +785,16 @@ int SFUNC _lib_func_get_clipboard(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret
 	if (hMem != NULL) {
 		p = GlobalLock(hMem);
 		if (p != NULL) {
-			mem_free(&ret->v->u.sValue);
-			lib_set_string(ret, p);
+			// another program may have put text without a terminator
+			SIZE_T max = GlobalSize(hMem) / sizeof(TCHAR);
+			SIZE_T len;
+			TCHAR *tmp;
+			for (len = 0; len < max && p[len] != TEXT('\0'); len++);
+			if ((tmp = alloc_copy_n(p, (int)len)) != NULL) {
+				mem_free(&ret->v->u.sValue);
+				lib_set_string(ret, tmp);
+				mem_free(&tmp);
+			}
 			GlobalUnlock(hMem);
 		}
 	}

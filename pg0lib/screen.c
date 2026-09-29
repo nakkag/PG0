@@ -12,6 +12,7 @@
 #include <tchar.h>
 #include <math.h>
 #include <float.h>
+#include <limits.h>
 
 #include "screen.h"
 
@@ -21,6 +22,7 @@
 #define ERR_NO_SCREEN			TEXT("startScreen() has not been called")
 #define DEFAULT_FONT_SIZE		30
 #define DEFAULT_FONT_FACE		TEXT("sans-serif")
+#define MAX_SURFACE_SIZE		16384
 
 /* Global Variables */
 SC_STATE g_sc;
@@ -117,6 +119,32 @@ void SFUNC _lib_unload(void)
 static SURFACE *target_surface(void)
 {
 	return g_sc.offscreen_flag ? &g_sc.offscreen : &g_sc.screen;
+}
+
+/*
+ * clamp_int - floor of a number as an int (a cast of a huge value is undefined)
+ */
+static int clamp_int(double num)
+{
+	if (!(num > INT_MIN)) {
+		return INT_MIN;
+	}
+	if (num > INT_MAX) {
+		return INT_MAX;
+	}
+	return (int)floor(num);
+}
+
+/*
+ * flatten_text - canvas draws every line break and tab of a text as a space
+ */
+static void flatten_text(TCHAR *text)
+{
+	for (; *text != TEXT('\0'); text++) {
+		if (*text == TEXT('\n') || *text == TEXT('\r') || *text == TEXT('\t') || *text == TEXT('\f')) {
+			*text = TEXT(' ');
+		}
+	}
 }
 
 /*
@@ -237,10 +265,10 @@ int SFUNC _lib_func_startscreen(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, 
 		opt_color(opts, TEXT("color"), &color);
 		lib_opt_number(opts, TEXT("fit"), &fit);
 	}
-	if (!(w > 0)) w = 1;
-	if (!(h > 0)) h = 1;
-	if (w > 16384) w = 16384;
-	if (h > 16384) h = 16384;
+	if (!(w >= 1)) w = 1;
+	if (!(h >= 1)) h = 1;
+	if (w > MAX_SURFACE_SIZE) w = MAX_SURFACE_SIZE;
+	if (h > MAX_SURFACE_SIZE) h = MAX_SURFACE_SIZE;
 
 	if (!sc_gdiplus_init()) {
 		lstrcpy(ErrStr, TEXT("GDI+ initialization failed"));
@@ -336,7 +364,7 @@ int SFUNC _lib_func_timestring(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, T
 {
 	SYSTEMTIME st;
 	TCHAR *format, *out, *p, *r;
-	TCHAR buf[64];
+	TCHAR buf[160];
 	int size;
 
 	if (param == NULL) {
@@ -452,10 +480,11 @@ int SFUNC _lib_func_endoffscreen(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret,
 			   the mask modes stay with their canvases */
 			SURFACE tmp = g_sc.screen;
 			int mask = g_sc.screen.mask_mode;
+			int omask = g_sc.offscreen.mask_mode;
 			g_sc.screen = g_sc.offscreen;
 			g_sc.offscreen = tmp;
 			g_sc.screen.mask_mode = mask;
-			g_sc.offscreen.mask_mode = tmp.mask_mode;
+			g_sc.offscreen.mask_mode = omask;
 			g_sc.offscreen_synced = FALSE;
 		} else {
 			g_sc.offscreen_synced = sc_surface_draw_over(&g_sc.screen, &g_sc.offscreen);
@@ -807,15 +836,16 @@ int SFUNC _lib_func_createimage(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, 
 	if (lib_param_count(param) < 4) {
 		return -2;
 	}
-	x = (int)floor(lib_to_float(lib_param(param, 0)));
-	y = (int)floor(lib_to_float(lib_param(param, 1)));
-	w = (int)floor(lib_to_float(lib_param(param, 2)));
-	h = (int)floor(lib_to_float(lib_param(param, 3)));
+	x = clamp_int(lib_to_float(lib_param(param, 0)));
+	y = clamp_int(lib_to_float(lib_param(param, 1)));
+	w = clamp_int(lib_to_float(lib_param(param, 2)));
+	h = clamp_int(lib_to_float(lib_param(param, 3)));
 	opts = opt_array(param, 4);
 	if (opts != NULL) {
 		lib_opt_number(opts, TEXT("id"), &id);
 	}
-	if (w <= 0 || h <= 0) {
+	// a canvas of such a size cannot be created on the web either
+	if (w <= 0 || h <= 0 || w > MAX_SURFACE_SIZE || h > MAX_SURFACE_SIZE) {
 		lstrcpy(ErrStr, TEXT("Invalid image size"));
 		return -1;
 	}
@@ -840,10 +870,13 @@ int SFUNC _lib_func_createimage(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, 
 		return -1;
 	}
 	sc_surface_copy_region(img, target, x, y);
-	index = (int)id;
-	if (id >= 0 && index < g_sc.image_count) {
-		sc_surface_free(g_sc.images[index]);
-		HeapFree(GetProcessHeap(), 0, g_sc.images[index]);
+	// compare as double: a huge id does not fit in an int
+	if (id >= 0 && id < (double)g_sc.image_count) {
+		index = (int)id;
+		if (g_sc.images[index] != NULL) {
+			sc_surface_free(g_sc.images[index]);
+			HeapFree(GetProcessHeap(), 0, g_sc.images[index]);
+		}
 		g_sc.images[index] = img;
 	} else {
 		SURFACE **list;
@@ -951,6 +984,7 @@ int SFUNC _lib_func_drawtext(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCH
 		lstrcpy(ErrStr, LIB_ERR_ALLOC);
 		return -1;
 	}
+	flatten_text(text);
 	x = lib_to_float(lib_param(param, 1));
 	y = lib_to_float(lib_param(param, 2));
 	opts = opt_array(param, 3);
@@ -989,6 +1023,7 @@ int SFUNC _lib_func_measuretext(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, 
 		lstrcpy(ErrStr, LIB_ERR_ALLOC);
 		return -1;
 	}
+	flatten_text(text);
 	opts = opt_array(param, 1);
 	text_options(opts, &style, &size, &face);
 	if (!sc_gdiplus_init()) {

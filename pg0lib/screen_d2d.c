@@ -374,7 +374,7 @@ BOOL sc_d2d_paint(HWND hWnd, const SC_PAINT_INFO *info)
 	D2D1_COLOR_F c;
 	D2D1_RECT_F dest;
 	HRESULT hr;
-	BOOL have = FALSE;
+	BOOL have = FALSE, failed = FALSE;
 
 	if (!sc_d2d_available() || !ensure_target(hWnd, info->cw, info->ch)) {
 		return FALSE;
@@ -392,8 +392,17 @@ BOOL sc_d2d_paint(HWND hWnd, const SC_PAINT_INFO *info)
 				have = FALSE;
 			}
 		}
+		if (!have) {
+			/* the GPU bitmap cannot be built or filled: leave the screen dirty for the GDI presenter */
+			InterlockedExchange(&g_sc.dirty, 1);
+			failed = TRUE;
+		}
 	}
 	LeaveCriticalSection(&g_sc.screen_cs);
+	if (failed) {
+		sc_d2d_release_target();
+		return FALSE;
+	}
 
 	RT(BeginDraw)(d2d_target);
 	c = color_f(SC_BACK_COLOR);

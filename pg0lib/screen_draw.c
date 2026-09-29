@@ -660,10 +660,22 @@ BOOL sc_parse_color(const TCHAR *str, ARGB *color)
  */
 static REAL pen_width(double width)
 {
-	if (!(width > 0)) {
+	if (!(width > 0) || !_finite(width)) {
 		return 1.0f;
 	}
 	return (REAL)width;
+}
+
+/*
+ * arc_angle - canvas ellipse() angles are parametric (the point is (rx cos t, ry sin t)),
+ * GDI+ measures the angle of the ray through that point: convert for a non circular ellipse
+ */
+static double arc_angle(double t, double rx, double ry)
+{
+	if (rx == ry || !(rx > 0) || !(ry > 0)) {
+		return t;
+	}
+	return atan2(ry * sin(t), rx * cos(t));
 }
 
 /*
@@ -826,12 +838,18 @@ void sc_draw_ellipse(SURFACE *s, double x, double y, double rx, double ry, doubl
 	if (sweep >= 2 * SC_PI) {
 		GdipAddPathEllipse(path, (REAL)-rx, (REAL)-ry, (REAL)(rx * 2), (REAL)(ry * 2));
 	} else {
+		double gstart, gsweep;
 		sweep = fmod(sweep, 2 * SC_PI);
 		if (sweep < 0) {
 			sweep += 2 * SC_PI;
 		}
+		gstart = arc_angle(start, rx, ry);
+		gsweep = fmod(arc_angle(start + sweep, rx, ry) - gstart, 2 * SC_PI);
+		if (gsweep < 0) {
+			gsweep += 2 * SC_PI;
+		}
 		GdipAddPathArc(path, (REAL)-rx, (REAL)-ry, (REAL)(rx * 2), (REAL)(ry * 2),
-			(REAL)(start * 180.0 / SC_PI), (REAL)(sweep * 180.0 / SC_PI));
+			(REAL)(gstart * 180.0 / SC_PI), (REAL)(gsweep * 180.0 / SC_PI));
 	}
 	GdipTranslateWorldTransform(g, (REAL)x, (REAL)y, MatrixOrderPrepend);
 	GdipRotateWorldTransform(g, (REAL)(rotation * 180.0 / SC_PI), MatrixOrderPrepend);
@@ -1139,7 +1157,8 @@ static void pool_init(void)
 	{
 		/* PG0_SCREEN_THREADS overrides the number of worker threads (0: none) */
 		TCHAR buf[16];
-		if (GetEnvironmentVariable(TEXT("PG0_SCREEN_THREADS"), buf, 16) > 0) {
+		DWORD len = GetEnvironmentVariable(TEXT("PG0_SCREEN_THREADS"), buf, 16);
+		if (len > 0 && len < 16) {
 			n = _ttoi(buf);
 		}
 	}

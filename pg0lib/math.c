@@ -604,14 +604,19 @@ int SFUNC _lib_func_ceil(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHAR *
 }
 
 /*
- * _lib_func_round - round to the nearest integer (halves go up)
+ * _lib_func_round - round to the nearest integer (halves go up, like Math.round)
  */
 int SFUNC _lib_func_round(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHAR *ErrStr)
 {
+	double num, f;
+
 	if (param == NULL) {
 		return -2;
 	}
-	return number_result(ret, floor(lib_to_float(param) + 0.5), FALSE, ErrStr);
+	// not floor(num + 0.5): the addition rounds 0.49999999999999994 up to 1
+	num = lib_to_float(param);
+	f = floor(num);
+	return number_result(ret, (num - f >= 0.5) ? f + 1 : f, FALSE, ErrStr);
 }
 
 /*

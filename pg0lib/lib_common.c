@@ -510,7 +510,8 @@ BOOL lib_check_stop(EXECINFO *ei)
 	if (sci->callback == NULL) {
 		return FALSE;
 	}
-	return (((LIB_SCRIPT_CALLBACK)sci->callback)(ei, NULL) == -1);
+	// any non-zero result stops the script, as in the interpreter itself
+	return (((LIB_SCRIPT_CALLBACK)sci->callback)(ei, NULL) != 0);
 }
 
 /*

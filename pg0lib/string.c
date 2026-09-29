@@ -66,6 +66,51 @@ int SFUNC _lib_func_trim(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHAR *
 }
 
 /*
+ * js_case - change the case like JavaScript's toLowerCase()/toUpperCase() (frees str, returns a new string)
+ *           ICU (icu.dll, Windows 10 1703 or later) does the full Unicode case mapping of JavaScript
+ *           (U+00DF to "SS"); without it CharLowerBuff/CharUpperBuff differ for a few hundred characters
+ */
+typedef int (__cdecl *ICU_STRCASE)(WCHAR *dest, int destCapacity, const WCHAR *src, int srcLength, const char *locale, int *pErrorCode);
+
+static TCHAR *js_case(TCHAR *str, const BOOL upper)
+{
+	static ICU_STRCASE u_strToLower = NULL, u_strToUpper = NULL;
+	static BOOL checked = FALSE;
+	ICU_STRCASE func;
+	TCHAR *ret;
+	int len = lstrlen(str);
+
+	if (!checked) {
+		HMODULE hIcu = LoadLibrary(TEXT("icu.dll"));
+		if (hIcu != NULL) {
+			u_strToLower = (ICU_STRCASE)GetProcAddress(hIcu, "u_strToLower");
+			u_strToUpper = (ICU_STRCASE)GetProcAddress(hIcu, "u_strToUpper");
+		}
+		checked = TRUE;
+	}
+	func = (upper) ? u_strToUpper : u_strToLower;
+	if (func != NULL) {
+		// a character can become up to three (U+FB03 to "FFI")
+		int err = 0, cap = len * 3 + 1, n;
+		if ((ret = mem_alloc(sizeof(TCHAR) * cap)) != NULL) {
+			n = func(ret, cap, str, len, "", &err);
+			if (err <= 0 && n >= 0 && n < cap) {
+				*(ret + n) = TEXT('\0');
+				mem_free(&str);
+				return ret;
+			}
+			mem_free(&ret);
+		}
+	}
+	if (upper) {
+		CharUpperBuff(str, len);
+	} else {
+		CharLowerBuff(str, len);
+	}
+	return str;
+}
+
+/*
  * _lib_func_to_lower - convert to lower case
  */
 int SFUNC _lib_func_to_lower(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHAR *ErrStr)
@@ -80,8 +125,7 @@ int SFUNC _lib_func_to_lower(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCH
 		lstrcpy(ErrStr, LIB_ERR_ALLOC);
 		return -1;
 	}
-	CharLowerBuff(str, lstrlen(str));
-	ret->v->u.sValue = str;
+	ret->v->u.sValue = js_case(str, FALSE);
 	ret->v->type = TYPE_STRING;
 	return 0;
 }
@@ -101,8 +145,7 @@ int SFUNC _lib_func_to_upper(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCH
 		lstrcpy(ErrStr, LIB_ERR_ALLOC);
 		return -1;
 	}
-	CharUpperBuff(str, lstrlen(str));
-	ret->v->u.sValue = str;
+	ret->v->u.sValue = js_case(str, TRUE);
 	ret->v->type = TYPE_STRING;
 	return 0;
 }

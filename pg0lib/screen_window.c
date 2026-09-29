@@ -290,6 +290,10 @@ static void update_view(HWND hWnd)
 		g_view.top = 0;
 		return;
 	}
+	// a minimized window has no client area: keep the last view (a scale of 0 would break the coordinates)
+	if (cw <= 0 || ch <= 0) {
+		return;
+	}
 	if (fit) {
 		g_view.scale = (double)cw / w;
 		if (h * g_view.scale > ch) {
@@ -487,9 +491,19 @@ static void composite_canvas(ARGB bg)
 {
 	const DWORD *src = g_snap;
 	DWORD *dst = g_comp_bits;
-	DWORD bgp = bg | 0xFF000000;
+	DWORD ba = bg >> 24;
 	DWORD br = (bg >> 16) & 0xFF, bgc = (bg >> 8) & 0xFF, bb = bg & 0xFF;
+	DWORD bgp;
 	SIZE_T i, n = (SIZE_T)g_comp_w * g_comp_h;
+
+	if (ba != 255) {
+		/* a translucent background shows the window color through it, as the Direct2D presenter does */
+		DWORD inv = 255 - ba;
+		br = (br * ba + ((SC_BACK_COLOR >> 16) & 0xFF) * inv + 127) / 255;
+		bgc = (bgc * ba + ((SC_BACK_COLOR >> 8) & 0xFF) * inv + 127) / 255;
+		bb = (bb * ba + (SC_BACK_COLOR & 0xFF) * inv + 127) / 255;
+	}
+	bgp = 0xFF000000 | (br << 16) | (bgc << 8) | bb;
 
 	for (i = 0; i < n; i++) {
 		DWORD p = src[i];
