@@ -18,7 +18,15 @@
 /* Define */
 #define IS_SPACE(c)				(c == TEXT(' ') || c == TEXT('\t') || c == TEXT('\r'))
 
+#define BRACKET_UNIT			32		/* 開き括弧のスタックを増やす単位 */
+
 /* Global Variables */
+/* 閉じていない開き括弧 */
+typedef struct _BRACKETINFO {
+	SYM_TYPE type;			/* 開き括弧の種類 */
+	TCHAR *p;				/* 開き括弧の位置(閉じられない場合のエラーの位置に使う) */
+} BRACKETINFO;
+
 typedef struct _PARSEINFO {
 	EXECINFO *ei;
 	SYM_TYPE type;
@@ -31,11 +39,18 @@ typedef struct _PARSEINFO {
 	BOOL case_end;
 	BOOL condition;
 	BOOL extension;
+	BRACKETINFO *brackets;	/* 括弧の中かどうかを見るためのスタック */
+	int bracket_cnt;
+	int bracket_size;
 	int level;
 	int line;
 } PARSEINFO;
 
 /* Local Function Prototypes */
+static BOOL PushBracket(PARSEINFO *pi, const SYM_TYPE type);
+static void PopBracket(PARSEINFO *pi, const SYM_TYPE type);
+static void FreeBracket(PARSEINFO *pi);
+
 static BOOL GetExtensionToken(PARSEINFO *pi);
 static void GetExtensionKeyword(PARSEINFO *pi, TCHAR *s);
 static BOOL GetToken(PARSEINFO *pi);
@@ -79,6 +94,57 @@ static TOKEN *VarDecl(PARSEINFO *pi, TOKEN *cu_tk);
 //構文
 static TOKEN *CompoundStatement(PARSEINFO *pi, TOKEN *cu_tk);
 static TOKEN *StatementList(PARSEINFO *pi, TOKEN *cu_tk);
+
+/*
+ * PushBracket - 開き括弧を積む
+ *
+ * 積んでいる間は改行で文を終わらせずに次の行へ続ける。
+ * PythonやJavaScriptの暗黙の行継続と同じ考え方で、
+ * 括弧の中では行末が値や閉じ括弧でも文の途中として扱う。
+ */
+static BOOL PushBracket(PARSEINFO *pi, const SYM_TYPE type)
+{
+	if (pi->bracket_cnt >= pi->bracket_size) {
+		int size = pi->bracket_size + BRACKET_UNIT;
+		BRACKETINFO *buf;
+
+		buf = (pi->brackets == NULL) ? mem_alloc(sizeof(BRACKETINFO) * size) :
+			mem_realloc(pi->brackets, sizeof(BRACKETINFO) * size);
+		if (buf == NULL) {
+			Error(pi->ei, ERR_ALLOC, pi->p, NULL);
+			return FALSE;
+		}
+		pi->brackets = buf;
+		pi->bracket_size = size;
+	}
+	pi->brackets[pi->bracket_cnt].type = type;
+	pi->brackets[pi->bracket_cnt].p = pi->p;
+	pi->bracket_cnt++;
+	return TRUE;
+}
+
+/*
+ * PopBracket - 閉じ括弧に対応する開き括弧を降ろす
+ *
+ * 種類が食い違う場合は降ろさない。括弧の対応はget_pair_braceで確かめているため、
+ * 食い違うのは構文が壊れている場合で、これまでどおり構文解析側のエラーにする。
+ */
+static void PopBracket(PARSEINFO *pi, const SYM_TYPE type)
+{
+	if (pi->bracket_cnt > 0 && pi->brackets[pi->bracket_cnt - 1].type == type) {
+		pi->bracket_cnt--;
+	}
+}
+
+/*
+ * FreeBracket - 開き括弧のスタックを解放
+ */
+static void FreeBracket(PARSEINFO *pi)
+{
+	mem_free(&pi->brackets);
+	pi->bracket_cnt = 0;
+	pi->bracket_size = 0;
+}
 
 /*
  * GetExtensionToken - 字句解析(拡張)
@@ -359,6 +425,11 @@ static BOOL GetToken(PARSEINFO *pi)
 
 	switch (*pi->p) {
 	case TEXT('\0'):
+		if (pi->bracket_cnt > 0) {
+			//閉じていない括弧が残ったまま終わっている
+			Error(pi->ei, ERR_PARENTHESES, pi->brackets[pi->bracket_cnt - 1].p, NULL);
+			return FALSE;
+		}
 		pi->type = SYM_EOF;
 		return TRUE;
 
@@ -369,6 +440,12 @@ static BOOL GetToken(PARSEINFO *pi)
 
 	case TEXT('\n'):
 		pi->line++;
+		if (pi->bracket_cnt > 0) {
+			//括弧の中は行末が値でも文の途中として扱い、改行を読み飛ばす
+			pi->p++;
+			pi->r = pi->p;
+			return GetToken(pi);
+		}
 		if (pi->concat == FALSE ||
 			prev_type == SYM_EXIT || prev_type == SYM_RETURN ||
 			prev_type == SYM_BREAK || prev_type == SYM_CONTINUE) {
@@ -400,6 +477,8 @@ static BOOL GetToken(PARSEINFO *pi)
 			Error(pi->ei, ERR_PARENTHESES, pi->p, NULL);
 			return FALSE;
 		}
+		// { は文の集まり(ブロック)にも使うため、ここでは積まない。
+		// 値の並びの { だけをPrimaryで積む
 		pi->type = SYM_BOPEN;
 		pi->concat = TRUE;
 		break;
@@ -418,11 +497,16 @@ static BOOL GetToken(PARSEINFO *pi)
 			Error(pi->ei, ERR_PARENTHESES, pi->p, NULL);
 			return FALSE;
 		}
+		if (PushBracket(pi, SYM_OPEN) == FALSE) {
+			return FALSE;
+		}
 		pi->type = SYM_OPEN;
 		pi->concat = TRUE;
 		break;
 
 	case TEXT(')'):
+		//閉じ括弧の次の改行は括弧の外として読むため、ここで降ろす
+		PopBracket(pi, SYM_OPEN);
 		pi->type = SYM_CLOSE;
 		pi->concat = FALSE;
 		break;
@@ -436,11 +520,15 @@ static BOOL GetToken(PARSEINFO *pi)
 			Error(pi->ei, ERR_PARENTHESES, pi->p, NULL);
 			return FALSE;
 		}
+		if (PushBracket(pi, SYM_ARRAYOPEN) == FALSE) {
+			return FALSE;
+		}
 		pi->type = SYM_ARRAYOPEN;
 		pi->concat = TRUE;
 		break;
 
 	case TEXT(']'):
+		PopBracket(pi, SYM_ARRAYOPEN);
 		pi->type = SYM_ARRAYCLOSE;
 		pi->concat = FALSE;
 		break;
@@ -732,6 +820,10 @@ static TOKEN *Primary(PARSEINFO *pi, TOKEN *cu_tk)
 #ifdef DEBUG_SET
 		cu_tk->buf = alloc_copy_n(pi->p, pi->r - pi->p);
 #endif
+		//値の並びの { はブロックと違い、中の改行で区切らない
+		if (PushBracket(pi, SYM_BOPEN) == FALSE) {
+			return NULL;
+		}
 		if (GetToken(pi) == FALSE) {
 			return NULL;
 		}
@@ -746,6 +838,7 @@ static TOKEN *Primary(PARSEINFO *pi, TOKEN *cu_tk)
 			Error(pi->ei, ERR_SENTENCE, pi->p, NULL);
 			return NULL;
 		}
+		PopBracket(pi, SYM_BOPEN);
 		if (GetToken(pi) == FALSE) {
 			return NULL;
 		}
@@ -2626,6 +2719,7 @@ TOKEN *ParseVariable(EXECINFO *ei, TCHAR *buf)
 	pi.level = 1;
 
 	if (GetToken(&pi) == FALSE) {
+		FreeBracket(&pi);
 		return NULL;
 	}
 
@@ -2633,9 +2727,11 @@ TOKEN *ParseVariable(EXECINFO *ei, TCHAR *buf)
 	ZeroMemory(&tk, sizeof(TOKEN));
 	if (Array(&pi, &tk) == NULL || pi.type != SYM_EOF) {
 		//エラー時は全て解放
+		FreeBracket(&pi);
 		FreeToken(tk.next);
 		return NULL;
 	}
+	FreeBracket(&pi);
 	return tk.next;
 }
 
@@ -2656,6 +2752,7 @@ TOKEN *ParseSentence(EXECINFO *ei, TCHAR *buf, int level)
 		pi.extension = ei->sci->extension;
 	}
 	if (GetToken(&pi) == FALSE) {
+		FreeBracket(&pi);
 		return NULL;
 	}
 
@@ -2665,6 +2762,7 @@ TOKEN *ParseSentence(EXECINFO *ei, TCHAR *buf, int level)
 	while (cu_tk != NULL && pi.type != SYM_EOF) {
 		cu_tk = StatementList(&pi, cu_tk);
 	}
+	FreeBracket(&pi);
 	if (cu_tk == NULL) {
 		//エラー時は全て解放
 		FreeToken(tk.next);

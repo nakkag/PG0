@@ -98,8 +98,12 @@ TCHAR *str_cpy_n(TCHAR *ret, TCHAR *buf, const int len)
 		return ret;
 	}
 	while ((*(ret++) = *(buf++)) && --i);
-	*ret = TEXT('\0');
-	if (i != 0) ret--;
+	if (i != 0) {
+		ret--;
+	}
+	else {
+		*ret = TEXT('\0');
+	}
 	return ret;
 }
 

@@ -460,7 +460,7 @@ static VALUEINFO *GetArrayValue(EXECINFO *ei, VALUEINFO *pvi, VALUE *keyv)
 	str_lower(tmp_key);
 	name_hash = str2hash(tmp_key);
 
-	if (vi->v->type != TYPE_ARRAY) {
+	if (vi->v->type != TYPE_ARRAY || vi->v->u.array == NULL) {
 		if (vi->v->type == TYPE_STRING) {
 			mem_free(&vi->v->u.sValue);
 		}
