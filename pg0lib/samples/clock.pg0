@@ -1,0 +1,20 @@
+#import("lib/screen.pg0")
+
+// 日付と時刻を表示する時計
+var width = 1920, height = 1080
+startScreen(width, height, {"color": "#fff"})
+
+var fontSize = 200
+while (1) {
+	drawRect(0, 0, width, height, {"color": "#fff", "fill": 1})
+
+	var date = timeString(time(), "YYYY/MM/DD")
+	var dateMeasure = measureText(date, {"fontstyle": "bold", "fontsize": fontSize})
+	drawText(date, (width - dateMeasure["width"]) / 2, (height - dateMeasure["height"]) / 2 - (fontSize / 1.7), {"fontstyle": "bold", "fontsize": fontSize, "color": "#000", "fill": 1})
+
+	var time = timeString(time(), "hh:mm:ss")
+	var timeMeasure = measureText(time, {"fontstyle": "bold", "fontsize": fontSize})
+	drawText(time, (width - timeMeasure["width"]) / 2, (height - timeMeasure["height"]) / 2 + (fontSize / 1.7), {"fontstyle": "bold", "fontsize": fontSize, "color": "#000", "fill": 1})
+
+	sleep(1000)
+}

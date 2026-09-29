@@ -20,10 +20,17 @@
 /* Struct */
 
 /* Function Prototypes */
-void *mem_alloc(const int size);
-void *mem_calloc(const int size);
-void *mem_realloc(void *mem, const int size);
-void mem_free(void **mem);
+// the program exports its allocator; library DLLs (PG0_LIB) allocate through it
+// so that memory can move between the program and the libraries safely
+#ifdef PG0_LIB
+#define MEM_EXPORT
+#else
+#define MEM_EXPORT				__declspec(dllexport)
+#endif
+MEM_EXPORT void *mem_alloc(const int size);
+MEM_EXPORT void *mem_calloc(const int size);
+MEM_EXPORT void *mem_realloc(void *mem, const int size);
+MEM_EXPORT void mem_free(void **mem);
 #ifdef _DEBUG
 void mem_debug(void);
 #endif

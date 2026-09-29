@@ -1,0 +1,35 @@
+#import("lib/screen.pg0")
+#import("lib/io.pg0")
+
+// BGMを流しながらキー入力で効果音を鳴らす
+// 1～8のキーでドレミ、Escキーで終了します
+startScreen(640, 360, {"color": "#222"})
+
+bgm({{"C4", 250}, {"E4", 250}, {"G4", 250}, {"C5", 250}, {"G4", 250}, {"E4", 250}, {"volume": 0.5}, {"C4", 500}})
+drawText("1-8: notes  Esc: quit", 20, 20, {"fontsize": 30, "color": "#fff"})
+
+var notes = {"C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"}
+var pressed = {}
+while (!inKey("Escape")) {
+	var keys = inKey()
+	for (var i = 0; i < 8; i++) {
+		var key = "" + (i + 1)
+		var down = 0
+		for (var j = 0; j < length(keys); j++) {
+			if (keys[j] == key) {
+				down = 1
+			}
+		}
+		if (down && !pressed[i]) {
+			playSound(notes[i], 0, 300)
+			drawText(notes[i], 20 + i * 70, 150, {"fontsize": 40, "color": "#ff0"})
+		}
+		if (!down && pressed[i]) {
+			drawRect(20 + i * 70, 150, 70, 60, {"color": "#222", "fill": 1})
+		}
+		pressed[i] = down
+	}
+	sleep(20)
+}
+stopSound()
+println("bye")

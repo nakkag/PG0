@@ -1,0 +1,8 @@
+EXPORTS
+	_lib_func_trim
+	_lib_func_to_lower
+	_lib_func_to_upper
+	_lib_func_str_match
+	_lib_func_substring
+	_lib_func_in_string
+	_lib_func_split

@@ -12,6 +12,8 @@
 #include <windows.h>
 #include <tchar.h>
 
+#include "script_memory.h"
+
 #include "script_string.h"
 
 /* Define */
@@ -31,12 +33,52 @@ static int address_index;
 #endif	//_DEBUG
 
 /* Local Function Prototypes */
+#ifdef PG0_LIB
+typedef void *(*HOST_MEM_ALLOC)(const int size);
+typedef void *(*HOST_MEM_REALLOC)(void *mem, const int size);
+typedef void (*HOST_MEM_FREE)(void **mem);
+static HOST_MEM_ALLOC host_alloc = NULL;
+static HOST_MEM_ALLOC host_calloc = NULL;
+static HOST_MEM_REALLOC host_realloc = NULL;
+static HOST_MEM_FREE host_free = NULL;
+static BOOL host_checked = FALSE;
+
+/*
+ * host_init - allocator exported by the host program (NULL when it has none)
+ */
+static void host_init(void)
+{
+	HMODULE hModule;
+
+	if (host_checked) {
+		return;
+	}
+	host_checked = TRUE;
+	hModule = GetModuleHandle(NULL);
+	host_alloc = (HOST_MEM_ALLOC)GetProcAddress(hModule, "mem_alloc");
+	host_calloc = (HOST_MEM_ALLOC)GetProcAddress(hModule, "mem_calloc");
+	host_realloc = (HOST_MEM_REALLOC)GetProcAddress(hModule, "mem_realloc");
+	host_free = (HOST_MEM_FREE)GetProcAddress(hModule, "mem_free");
+	if (host_alloc == NULL || host_calloc == NULL || host_realloc == NULL || host_free == NULL) {
+		host_alloc = NULL;
+		host_calloc = NULL;
+		host_realloc = NULL;
+		host_free = NULL;
+	}
+}
+#endif	//PG0_LIB
 
 /*
  * mem_alloc - バッファを確保
  */
-void *mem_alloc(const int size)
+MEM_EXPORT void *mem_alloc(const int size)
 {
+#ifdef PG0_LIB
+	host_init();
+	if (host_alloc != NULL) {
+		return host_alloc(size);
+	}
+#endif
 #ifdef _DEBUG
 	void *mem;
 
@@ -64,8 +106,14 @@ void *mem_alloc(const int size)
 /*
  * mem_calloc - 初期化したバッファを確保
  */
-void *mem_calloc(const int size)
+MEM_EXPORT void *mem_calloc(const int size)
 {
+#ifdef PG0_LIB
+	host_init();
+	if (host_calloc != NULL) {
+		return host_calloc(size);
+	}
+#endif
 #ifdef _DEBUG
 	void *mem;
 
@@ -93,8 +141,14 @@ void *mem_calloc(const int size)
 /*
  * mem_realloc - バッファを再確保
  */
-void *mem_realloc(void *mem, const int size)
+MEM_EXPORT void *mem_realloc(void *mem, const int size)
 {
+#ifdef PG0_LIB
+	host_init();
+	if (host_realloc != NULL) {
+		return host_realloc(mem, size);
+	}
+#endif
 #ifdef _DEBUG
 	all_alloc_size -= HeapSize(GetProcessHeap(), 0, mem);
 	mem = HeapReAlloc(GetProcessHeap(), 0, mem, size);
@@ -118,8 +172,15 @@ void *mem_realloc(void *mem, const int size)
 /*
  * mem_free - バッファを解放
  */
-void mem_free(void **mem)
+MEM_EXPORT void mem_free(void **mem)
 {
+#ifdef PG0_LIB
+	host_init();
+	if (host_free != NULL) {
+		host_free(mem);
+		return;
+	}
+#endif
 	if (*mem != NULL) {
 #ifdef _DEBUG
 		all_alloc_size -= HeapSize(GetProcessHeap(), 0, *mem);

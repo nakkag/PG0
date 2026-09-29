@@ -21,6 +21,9 @@
 
 #define BUF_SIZE				256
 
+// exported so that library DLLs can call script and standard functions (print etc.)
+#define SCRIPT_EXPORT			__declspec(dllexport)
+
 /* Struct */
 
 /* Function Prototypes */
@@ -41,7 +44,7 @@ BOOL SetVariable(EXECINFO *ei, TCHAR *name, VALUE *v);
 
 //é¿çs
 int ExecSentense(EXECINFO *ei, TOKEN *cu_tk, VALUEINFO **retvi, VALUEINFO **retstack);
-VALUEINFO *ExecFunction(EXECINFO *ei, TCHAR *name, VALUEINFO *param);
+SCRIPT_EXPORT VALUEINFO *ExecFunction(EXECINFO *ei, TCHAR *name, VALUEINFO *param);
 int ExecScript(SCRIPTINFO *sci, VALUEINFO *arg_vi, VALUEINFO **ret_vi);
 
 //âêÕ

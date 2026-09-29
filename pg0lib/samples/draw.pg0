@@ -1,0 +1,22 @@
+#import("lib/screen.pg0")
+
+// マウス(タッチ)で線を描く
+var width = 1920, height = 1080
+startScreen(width, height, {"color": "#fff"})
+
+var old = {}
+while (1) {
+	var t = inTouch()
+	if (t["touch"]) {
+		for (var i = 0; i < length(t["pos"]); i++) {
+			drawCircle(t["pos"][i]["x"], t["pos"][i]["y"], 3, {"color": "#000", "fill": 1})
+			if (i < length(old)) {
+				drawLine(old[i]["x"], old[i]["y"], t["pos"][i]["x"], t["pos"][i]["y"], {"color": "#000", "width": 8})
+			}
+		}
+		old = t["pos"]
+	} else {
+		old = {}
+	}
+	sleep(0)
+}

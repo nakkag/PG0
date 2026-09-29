@@ -1,0 +1,79 @@
+#import("lib/screen.pg0")
+#import("lib/math.pg0")
+
+// 障害物(青い丸)を避けて右端まで進むゲーム
+// タッチ(クリック)かスペースキーで上昇、離すと下降します
+var width = 1920, height = 1080
+var round = 12
+var x, y, px, py, move
+
+startScreen(width, height)
+
+while (1) {
+	var level = 1
+	initDisp(level)
+	while (1) {
+		sleep(20)
+		// 自分の位置を決定
+		px = x, py = y
+		if (inTouch()["touch"] || inKey(" ")) {
+			move -= level
+			if (move <= -round) {
+				move = -round
+			}
+		} else {
+			move += level
+			if (move >= round) {
+				move = round
+			}
+		}
+		x += level * 4
+		y += level * (move / (round / 4))
+		// 移動先の色を取得
+		var pt = rgbToPoint(x, y)
+		// 自分を描画
+		drawCircle(x, y, 3, {"color": "#000", "fill": 1})
+		drawLine(px, py, x, y, {"color": "#000", "width": 8})
+		if (x > width) {
+			// 右端に到達するとクリアとなり、次のレベルに進む
+			playMusic({{"C5", 100}, {"E5", 100}, {"G5", 200}})
+			initDisp(++level)
+			continue
+		}
+		if (y < 0 || y > height || (pt["r"] == 0 && pt["g"] == 0 && pt["b"] != 0)) {
+			// 上下の壁か障害物(青い丸)に当たるとゲームオーバー
+			playSound("C3", 0, 400)
+			var msg = "ゲームオーバー"
+			var measure = measureText(msg, {"fontstyle": "bold", "fontsize": 100})
+			drawText(msg,
+				(width - measure["width"]) / 2,
+				(height - measure["height"]) / 2,
+				{"fontstyle": "bold", "fontsize": 100, "color": "#aaa"})
+			sleep(1000)
+			break
+		}
+	}
+	// 次のゲームの開始のため、タッチするまで待機
+	while (!inTouch()["touch"] && !inKey(" ")) {
+		sleep(50)
+	}
+}
+
+function initDisp(level) {
+	// 画面のクリア
+	drawRect(0, 0, width, height, {"color": "#fff", "fill": 1})
+	// 初期化
+	x = 0
+	y = height / 2
+	move = 12
+	// 障害物(青い丸)を配置
+	for (var i = 0; i < 4; i++) {
+		drawCircle(
+			int(random() * (width - 500)) + 500,
+			int(random() * height),
+			int(random() * 100) + 100,
+			{"color": "#00f", "fill": 1})
+	}
+	// レベルの描画
+	drawText("Level." + level, 0, 0, {"fontsize": 40})
+}

@@ -28,7 +28,11 @@
 /* Global Variables */
 
 /* Local Function Prototypes */
-static BOOL LoadLibraryFile(SCRIPTINFO *sci, TCHAR *FileName);
+static BOOL IsEmptyScript(TCHAR *buf);
+static void GetModuleDir(TCHAR *dir);
+static BOOL IsLibraryName(TCHAR *name);
+static HANDLE LoadLibraryPath(TCHAR *dir, TCHAR *FileName);
+static BOOL LoadLibraryFile(SCRIPTINFO *sci, TCHAR *path, TCHAR *FileName);
 
 /*
  * GetFilePathName - パスからファイル名とディレクトリパスを取得
@@ -199,27 +203,139 @@ SCRIPTINFO *ReadScriptFile(SCRIPTINFO *sci, TCHAR *path, TCHAR *name)
 }
 
 /*
+ * IsEmptyScript - the script has no statements (only preprocessor lines, comments and blanks)
+ */
+static BOOL IsEmptyScript(TCHAR *buf)
+{
+	TCHAR *p;
+
+	if (buf == NULL) {
+		return TRUE;
+	}
+	for (p = buf; *p != TEXT('\0');) {
+		while (IS_SPACE(*p)) {
+			p++;
+		}
+		if (*p == TEXT('\0')) {
+			break;
+		}
+		if (*p != TEXT('#') && !(*p == TEXT('/') && *(p + 1) == TEXT('/'))) {
+			return FALSE;
+		}
+		for (; *p != TEXT('\0') && *p != TEXT('\n'); p++);
+	}
+	return TRUE;
+}
+
+/*
+ * GetModuleDir - directory of the running program (with a trailing backslash)
+ */
+static void GetModuleDir(TCHAR *dir)
+{
+	TCHAR *p, *r;
+
+	*dir = TEXT('\0');
+	if (GetModuleFileName(NULL, dir, MAX_PATH) == 0) {
+		*dir = TEXT('\0');
+		return;
+	}
+	for (p = r = dir; *p != TEXT('\0'); p++) {
+		if (*p == TEXT('\\') || *p == TEXT('/')) {
+			r = p;
+		}
+	}
+	if (r == dir) {
+		*dir = TEXT('\0');
+	} else {
+		*(r + 1) = TEXT('\0');
+	}
+}
+
+/*
+ * IsLibraryName - the name is a DLL (".dll")
+ */
+static BOOL IsLibraryName(TCHAR *name)
+{
+	int len = lstrlen(name);
+	return (len > 4 && str_cmp_i(name + len - 4, TEXT(".dll")) == 0);
+}
+
+/*
+ * LoadLibraryPath - load a DLL located in a directory
+ */
+static HANDLE LoadLibraryPath(TCHAR *dir, TCHAR *FileName)
+{
+	TCHAR buf[MAX_PATH + 1];
+
+	if (dir == NULL || *dir == TEXT('\0') || lstrlen(dir) + lstrlen(FileName) >= MAX_PATH) {
+		return NULL;
+	}
+	lstrcpy(buf, dir);
+	lstrcat(buf, FileName);
+	if (GetFileAttributes(buf) == INVALID_FILE_ATTRIBUTES) {
+		return NULL;
+	}
+	return LoadLibraryEx(buf, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+}
+
+/*
  * LoadLibraryFile - ライブラリを読み込む
  */
-static BOOL LoadLibraryFile(SCRIPTINFO *sci, TCHAR *FileName)
+static BOOL LoadLibraryFile(SCRIPTINFO *sci, TCHAR *path, TCHAR *FileName)
 {
 	SCRIPTINFO *tsci = sci->sci_top;
 	EXECINFO ei;
 	LIBRARYINFO *lib, *pl;
+	HANDLE hModul = NULL;
+	TCHAR dir[MAX_PATH + 1];
+	BOOL absolute;
 
+	//ライブラリの読み込み
+	// search order:
+	// 1) directory of the importing script  2) current directory
+	// 3) directory of the program  4) default search order
+	absolute = (*FileName == TEXT('\\') || *FileName == TEXT('/') ||
+		(*FileName != TEXT('\0') && *(FileName + 1) == TEXT(':')));
+	if (absolute) {
+		hModul = LoadLibraryEx(FileName, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+	} else {
+		if (path != NULL && *path != TEXT('\0')) {
+			hModul = LoadLibraryPath(path, FileName);
+		}
+		if (hModul == NULL) {
+			*dir = TEXT('\0');
+			if (GetCurrentDirectory(MAX_PATH, dir) != 0) {
+				lstrcat(dir, TEXT("\\"));
+				hModul = LoadLibraryPath(dir, FileName);
+			}
+		}
+		if (hModul == NULL) {
+			GetModuleDir(dir);
+			hModul = LoadLibraryPath(dir, FileName);
+		}
+		if (hModul == NULL) {
+			hModul = LoadLibrary(FileName);
+		}
+	}
+	if (hModul == NULL) {
+		return FALSE;
+	}
+	// already imported by another script
+	for (pl = tsci->lib; pl != NULL; pl = pl->next) {
+		if (pl->hModul == hModul) {
+			FreeLibrary(hModul);
+			return TRUE;
+		}
+	}
 	lib = mem_calloc(sizeof(LIBRARYINFO));
 	if(lib == NULL){
+		FreeLibrary(hModul);
 		ZeroMemory(&ei, sizeof(EXECINFO));
 		ei.sci = sci;
 		Error(&ei, ERR_ALLOC, FileName, NULL);
 		return FALSE;
 	}
-	//ライブラリの読み込み
-	lib->hModul = LoadLibrary(FileName);
-	if(lib->hModul == NULL){
-		mem_free(&lib);
-		return FALSE;
-	}
+	lib->hModul = hModul;
 	if (tsci->lib == NULL) {
 		tsci->lib = lib;
 	} else {
@@ -249,13 +365,13 @@ BOOL ReadScriptFiles(SCRIPTINFO *sci, TCHAR *path, TCHAR *name)
 	p = str_cpy(p, name);
 	for (p = r = buf; *p != TEXT('\0'); p++) {
 #ifdef UNICODE
-		if (*p == TEXT('\\')) {
+		if (*p == TEXT('\\') || *p == TEXT('/')) {
 			r = p + 1;
 		}
 #else
 		if (IsDBCSLeadByte(*p) == TRUE && *(p + 1) != TEXT('\0')) {
 			p++;
-		} else if (*p == TEXT('\\')) {
+		} else if (*p == TEXT('\\') || *p == TEXT('/')) {
 			r = p + 1;
 		}
 #endif
@@ -276,10 +392,10 @@ BOOL ReadScriptFiles(SCRIPTINFO *sci, TCHAR *path, TCHAR *name)
 				continue;
 			}
 			csci = ReadScriptFile(sci->sci_top, sPath, FindData.cFileName);
-			if (csci == NULL || csci->tk == NULL) {
+			if (csci == NULL || (csci->tk == NULL && IsEmptyScript(csci->buf) == FALSE)) {
 				return FALSE;
 			}
-			if (csci->ei == NULL && ExecScript(csci, NULL, &rvi) == -1) {
+			if (csci->tk != NULL && csci->ei == NULL && ExecScript(csci, NULL, &rvi) == -1) {
 				FreeValueList(rvi);
 				return FALSE;
 			}
@@ -334,17 +450,26 @@ TCHAR *Preprocessor(SCRIPTINFO *sci, TCHAR *path, TCHAR *p)
 	if (str_cmp_ni(t, PREP_IMPORT, lstrlen(PREP_IMPORT)) == 0) {
 		sci->extension = TRUE;
 		TCHAR cdir[MAX_PATH + 1] = { 0 };
+		TCHAR mdir[MAX_PATH + 1] = { 0 };
 		if (GetCurrentDirectory(MAX_PATH, cdir) != 0) {
 			lstrcat(cdir, TEXT("\\"));
 		}
+		GetModuleDir(mdir);
+		// search order:
+		// 1) relative to the script path (script)
+		// 2) relative to the current directory (script)
+		// 3) relative to the program directory (script)
+		// 4) library (a ".dll" name skips the script search)
 		// スクリプトファイルまたはライブラリのインポート
 		// 検索順序は以下
 		// 1) スクリプトパスからの相対パス(スクリプト)
 		// 2) カレントディレクトリからの相対パス(スクリプト)
 		// 3) ライブラリ
-		if (ReadScriptFiles(sci, path, str) == FALSE &&
+		if ((IsLibraryName(str) == TRUE ||
+			(ReadScriptFiles(sci, path, str) == FALSE &&
 			(*cdir == TEXT('\0') || ReadScriptFiles(sci, cdir, str) == FALSE) &&
-			LoadLibraryFile(sci, str) == FALSE) {
+			(*mdir == TEXT('\0') || ReadScriptFiles(sci, mdir, str) == FALSE))) &&
+			LoadLibraryFile(sci, path, str) == FALSE) {
 #ifndef IGNORE_IMPORT_ERROR
 			mem_free(&str);
 			ZeroMemory(&ei, sizeof(EXECINFO));
@@ -356,7 +481,7 @@ TCHAR *Preprocessor(SCRIPTINFO *sci, TCHAR *path, TCHAR *p)
 	} else if (str_cmp_ni(t, PREP_LIBRARY, lstrlen(PREP_LIBRARY)) == 0) {
 		sci->extension = TRUE;
 		// ライブラリの読み込み
-		if (LoadLibraryFile(sci, str) == FALSE) {
+		if (LoadLibraryFile(sci, path, str) == FALSE) {
 #ifndef IGNORE_IMPORT_ERROR
 			mem_free(&str);
 			ZeroMemory(&ei, sizeof(EXECINFO));

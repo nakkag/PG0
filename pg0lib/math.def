@@ -1,0 +1,19 @@
+EXPORTS
+	_lib_func_abs
+	_lib_func_atan
+	_lib_func_atan2
+	_lib_func_cos
+	_lib_func_exp
+	_lib_func_log
+	_lib_func_random
+	_lib_func_sign
+	_lib_func_sin
+	_lib_func_sqrt
+	_lib_func_tan
+	_lib_func_pow
+	_lib_func_max
+	_lib_func_min
+	_lib_func_floor
+	_lib_func_ceil
+	_lib_func_round
+	_lib_func_hypot

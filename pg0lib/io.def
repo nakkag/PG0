@@ -1,0 +1,8 @@
+EXPORTS
+	_lib_func_println
+	_lib_func_wait
+	_lib_func_savevalue
+	_lib_func_loadvalue
+	_lib_func_removevalue
+	_lib_func_get_clipboard
+	_lib_func_set_clipboard

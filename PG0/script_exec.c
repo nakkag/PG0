@@ -291,11 +291,20 @@ void FreeFuncInfo(FUNCINFO *fi)
 /*
  * FreeLibInfo - ƒ‰ƒCƒuƒ‰ƒŠî•ñ‚Ì‰ð•ú
  */
+typedef void (SFUNC *LIBUNLOAD)(void);
+
 void FreeLibInfo(LIBRARYINFO *lib)
 {
+	LIBUNLOAD unload;
+
 	if (lib == NULL) return;
 	FreeLibInfo(lib->next);
 
+	// a library may export _lib_unload to release windows, threads and devices
+	unload = (LIBUNLOAD)GetProcAddress(lib->hModul, "_lib_unload");
+	if (unload != NULL) {
+		unload();
+	}
 	FreeLibrary(lib->hModul);
 	mem_free(&lib);
 }
@@ -2058,7 +2067,7 @@ static BOOL SetFuncAddrList(EXECINFO *ei, TCHAR *Name, int name_hash, FUNCTION_T
 /*
  * ExecFunction - ŠÖ”‚ÌŽÀs
  */
-VALUEINFO *ExecFunction(EXECINFO *ei, TCHAR *name, VALUEINFO *param)
+SCRIPT_EXPORT VALUEINFO *ExecFunction(EXECINFO *ei, TCHAR *name, VALUEINFO *param)
 {
 	SCRIPTINFO *csci = ei->sci;
 	SCRIPTINFO *tmp_sci;
