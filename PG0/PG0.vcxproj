@@ -158,8 +158,12 @@
     <ClCompile Include="frame.c" />
     <ClCompile Include="functbl.c" />
     <ClCompile Include="func_std.c" />
+    <ClCompile Include="http.c" />
+    <ClCompile Include="json.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="nEdit.c" />
+    <ClCompile Include="online.c" />
+    <ClCompile Include="online_view.c" />
     <ClCompile Include="Profile.c" />
     <ClCompile Include="script_exec.c">
       <UndefinePreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -177,7 +181,11 @@
     <ClInclude Include="console_view.h" />
     <ClInclude Include="dpi.h" />
     <ClInclude Include="frame.h" />
+    <ClInclude Include="http.h" />
+    <ClInclude Include="json.h" />
     <ClInclude Include="nEdit.h" />
+    <ClInclude Include="online.h" />
+    <ClInclude Include="online_view.h" />
     <ClInclude Include="Profile.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="script.h" />

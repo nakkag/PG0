@@ -23,6 +23,7 @@
 #include "console_view.h"
 #include "frame.h"
 #include "dpi.h"
+#include "online.h"
 
 #include "script.h"
 #include "script_string.h"
@@ -113,6 +114,8 @@ static void PutIni(const HWND hWnd, const TCHAR *path);
 static BOOL ReadScriptfile(const HWND hWnd, TCHAR *path);
 static BOOL SaveFile(const HWND hWnd, TCHAR *path);
 static BOOL SaveConfirm(const HWND hWnd);
+static void SetTitle(const HWND hWnd);
+static UINT SpeedMenuId(const int speed);
 static void SetEnableWindow(const HWND hWnd);
 static void Resize(const HWND hWnd);
 static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -653,6 +656,7 @@ static void GetIni(const HWND hWnd, const TCHAR *ini_path)
 	}
 	op.hex_mode = profile_get_int(TEXT("EXEC"), TEXT("hex_mode"), 0, ini_path);
 	SendMessage(hVariableView, WM_VIEW_SET_HEX_MODE, (WPARAM)(op.hex_mode == 0) ? FALSE : TRUE, 0);
+	online_get_ini(ini_path);
 
 	profile_free();
 }
@@ -693,6 +697,7 @@ static void PutIni(const HWND hWnd, const TCHAR *ini_path)
 	profile_write_int(TEXT("EXEC"), TEXT("strict_val"), op.strict_val, ini_path);
 	profile_write_int(TEXT("EXEC"), TEXT("pg0.5_mode"), op.pg05_mode, ini_path);
 	profile_write_int(TEXT("EXEC"), TEXT("hex_mode"), op.hex_mode, ini_path);
+	online_put_ini(ini_path);
 
 	profile_flush(ini_path);
 	profile_free();
@@ -851,6 +856,39 @@ static BOOL SaveConfirm(const HWND hWnd)
 }
 
 /*
+ * SetTitle - show the file path (or the name of the online script) in the title
+ */
+static void SetTitle(const HWND hWnd)
+{
+	TCHAR buf[BUF_SIZE + MAX_PATH];
+	const TCHAR *name = (*file_path != TEXT('\0')) ? file_path : online_get_name();
+
+	if (name == NULL) {
+		SetWindowText(hWnd, window_title);
+		return;
+	}
+	wsprintf(buf, TEXT("%s - [%s]"), window_title, name);
+	SetWindowText(hWnd, buf);
+}
+
+/*
+ * SpeedMenuId - menu item of the execution speed nearest to a speed of the web version
+ */
+static UINT SpeedMenuId(const int speed)
+{
+	if (speed <= EXEC_SPEED_NO_WAIT) {
+		return ID_MENUITEM_NO_WAIT;
+	}
+	if (speed < (EXEC_SPEED_HIGH + EXEC_SPEED_MID) / 2) {
+		return ID_MENUITEM_SPEED_HIGH;
+	}
+	if (speed < (EXEC_SPEED_MID + EXEC_SPEED_LOW) / 2) {
+		return ID_MENUITEM_SPEED_MID;
+	}
+	return ID_MENUITEM_SPEED_LOW;
+}
+
+/*
  * SetEnableWindow - メニュー項目の使用可能､ 使用不能を設定
  */
 static void SetEnableWindow(const HWND hWnd)
@@ -968,6 +1006,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		// コマンドライン
 		if (*cmd_line != TEXT('\0') && ReadScriptfile(hWnd, cmd_line) == TRUE) {
 			lstrcpy(file_path, cmd_line);
+			online_clear();
 			wsprintf(buf, TEXT("%s - [%s]"), window_title, file_path);
 			SetWindowText(hWnd, buf);
 			SendMessage(hVariableView, WM_VIEW_SETVARIABLE, 0, 0);
@@ -1127,6 +1166,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		DragQueryFile((HANDLE)wParam, 0, buf, BUF_SIZE - 1);
 		if (ReadScriptfile(hWnd, buf) == TRUE) {
 			lstrcpy(file_path, buf);
+			online_clear();
 			wsprintf(buf, TEXT("%s - [%s]"), window_title, file_path);
 			SetWindowText(hWnd, buf);
 			SendMessage(hVariableView, WM_VIEW_SETVARIABLE, 0, 0);
@@ -1135,6 +1175,10 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		break;
 
 	case WM_INITMENUPOPUP:
+		// the revision history needs a script opened from or saved to the online storage
+		if (LOWORD(lParam) == 0) {
+			EnableMenuItem((HMENU)wParam, ID_MENUITEM_ONLINE_HISTORY, (online_get_cid() != NULL) ? MF_ENABLED : MF_GRAYED);
+		}
 		if (LOWORD(lParam) == 1) {
 			DWORD st = 0, en = 0;
 			if (GetFocus() == hVariableView) {
@@ -1189,6 +1233,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			}
 			*file_path = TEXT('\0');
 			SendMessage(hEdit, WM_SETTEXT, 0, (LPARAM)TEXT(""));
+			online_clear();
 			SetWindowText(hWnd, window_title);
 			SendMessage(hVariableView, WM_VIEW_SETVARIABLE, 0, 0);
 			break;
@@ -1206,6 +1251,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			*buf = TEXT('\0');
 			if (ReadScriptfile(hWnd, buf) == TRUE) {
 				lstrcpy(file_path, buf);
+				online_clear();
 				wsprintf(buf, TEXT("%s - [%s]"), window_title, file_path);
 				SetWindowText(hWnd, buf);
 				SendMessage(hVariableView, WM_VIEW_SETVARIABLE, 0, 0);
@@ -1222,6 +1268,82 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				lstrcpy(file_path, buf);
 				wsprintf(buf, TEXT("%s - [%s]"), window_title, file_path);
 				SetWindowText(hWnd, buf);
+			}
+			break;
+
+		case ID_MENUITEM_ONLINE_OPEN:
+		case ID_MENUITEM_ONLINE_HISTORY:
+			EnterCriticalSection(&cs);
+			if (ed.exec_flag == TRUE) {
+				LeaveCriticalSection(&cs);
+				break;
+			}
+			LeaveCriticalSection(&cs);
+			if (LOWORD(wParam) == ID_MENUITEM_ONLINE_HISTORY && online_get_cid() == NULL) {
+				break;
+			}
+			if (SaveConfirm(hWnd) == FALSE) {
+				break;
+			}
+			{
+				ONLINE_SCRIPT script;
+				BOOL ret;
+
+				if (LOWORD(wParam) == ID_MENUITEM_ONLINE_HISTORY) {
+					ret = online_history(hWnd, &script);
+				} else {
+					ret = online_open(hWnd, &script);
+				}
+				if (ret == TRUE) {
+					*file_path = TEXT('\0');
+					SendMessage(hEdit, WM_SETMEM, sizeof(TCHAR) * lstrlen(script.code), (LPARAM)script.code);
+					mem_free(&script.code);
+					SendMessage(hEdit, EM_SETMODIFY, (WPARAM)FALSE, 0);
+					// the execution mode and speed saved with the script, as the web version does
+					if ((op.pg05_mode != 0) != script.pg05_mode) {
+						SendMessage(hWnd, WM_COMMAND, ID_MENUITEM_PG05, 0);
+					}
+					if (script.has_speed == TRUE) {
+						SendMessage(hWnd, WM_COMMAND, SpeedMenuId(script.speed), 0);
+					}
+					SetTitle(hWnd);
+					SendMessage(hVariableView, WM_VIEW_SETVARIABLE, 0, 0);
+				}
+			}
+			break;
+
+		case ID_MENUITEM_ONLINE_SAVE:
+			{
+				TCHAR *text, *p;
+				TCHAR *name = NULL;
+				int len, speed;
+
+				len = (int)SendMessage(hEdit, WM_GETTEXTLENGTH, 0, 0);
+				if ((text = (TCHAR *)mem_alloc(sizeof(TCHAR) * (len + 1))) == NULL) {
+					MessageBox(hWnd, TEXT("Alloc error"), window_title, MB_ICONERROR);
+					break;
+				}
+				SendMessage(hEdit, WM_GETTEXT, len + 1, (LPARAM)text);
+				// the name of the local file is offered, as the web version does
+				for (p = file_path; *p != TEXT('\0'); p++) {
+					if (*p == TEXT('\\') || *p == TEXT('/')) {
+						name = p + 1;
+					}
+				}
+				if (name == NULL && *file_path != TEXT('\0')) {
+					name = file_path;
+				}
+				EnterCriticalSection(&cs);
+				speed = ed.exec_speed;
+				LeaveCriticalSection(&cs);
+				if (online_save(hWnd, text, name, (op.pg05_mode != 0), speed) == TRUE) {
+					// a script read from a local file is still to be saved to the file
+					if (*file_path == TEXT('\0')) {
+						SendMessage(hEdit, EM_SETMODIFY, (WPARAM)FALSE, 0);
+					}
+					SetTitle(hWnd);
+				}
+				mem_free(&text);
 			}
 			break;
 
@@ -1254,12 +1376,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				CheckMenuItem(GetMenu(hWnd), ID_MENUITEM_PG05, MF_CHECKED);
 				lstrcpy(window_title, WINDOW_TITLE_EX);
 			}
-			if (*file_path != TEXT('\0')) {
-				wsprintf(buf, TEXT("%s - [%s]"), window_title, file_path);
-				SetWindowText(hWnd, buf);
-			} else {
-				SetWindowText(hWnd, window_title);
-			}
+			SetTitle(hWnd);
 			break;
 
 		case ID_MENUITEM_CLOSE:
@@ -1610,6 +1727,9 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdL
 		return 0;
 	}
 	if (RegisterConsoleWindow(hInstance) == FALSE) {
+		return 0;
+	}
+	if (online_initialize(hInstance) == FALSE) {
 		return 0;
 	}
 	if (InitApplication(hInstance) == FALSE) {

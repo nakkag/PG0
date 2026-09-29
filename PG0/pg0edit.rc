@@ -70,6 +70,10 @@ BEGIN
         MENUITEM "上書き保存(&S)\tCtrl+S",           ID_MENUITEM_SAVE
         MENUITEM "名前を付けて保存(&A)...",             ID_MENUITEM_SAVEAS
         MENUITEM SEPARATOR
+        MENUITEM "オンラインを開く(&E)...",             ID_MENUITEM_ONLINE_OPEN
+        MENUITEM "オンラインに保存(&I)...",             ID_MENUITEM_ONLINE_SAVE
+        MENUITEM "変更履歴(&H)...",                 ID_MENUITEM_ONLINE_HISTORY
+        MENUITEM SEPARATOR
         MENUITEM "フォント(&F)...",                 ID_MENUITEM_FONT
         MENUITEM "行番号(&L)",                     ID_MENUITEM_LINE_NO
         MENUITEM SEPARATOR
@@ -249,6 +253,53 @@ BEGIN
     ID_MENUITEM_STEP        "ステップ実行"
 END
 
+STRINGTABLE
+BEGIN
+    IDS_STRING_ONLINE_OPEN_TITLE "オンラインを開く"
+    IDS_STRING_ONLINE_SAVE_TITLE "オンラインに保存"
+    IDS_STRING_ONLINE_HISTORY_TITLE "変更履歴"
+    IDS_STRING_ONLINE_COPY  "URLをコピー"
+    IDS_STRING_ONLINE_COPY_AUTORUN "自動実行URLをコピー"
+    IDS_STRING_ONLINE_REMOVE "削除"
+    IDS_STRING_ONLINE_REMOVE_PASSWORD "編集パスワードを入力してください。"
+    IDS_STRING_ONLINE_READ_MORE "さらに読み込む..."
+    IDS_STRING_ONLINE_HISTORY_CURRENT "現在のバージョン"
+    IDS_STRING_ONLINE_FILTER_ALL "すべて"
+    IDS_STRING_ONLINE_FILTER_MINE "自分の"
+    IDS_STRING_ONLINE_SORT_POPULAR "人気順"
+    IDS_STRING_ONLINE_SORT_NEW "新着順"
+    IDS_STRING_ONLINE_TAG_GAME "ゲーム"
+    IDS_STRING_ONLINE_TAG_GRAPHICS "図形・アニメーション"
+    IDS_STRING_ONLINE_TAG_MATH "計算・数学"
+    IDS_STRING_ONLINE_TAG_ALGORITHM "アルゴリズム"
+    IDS_STRING_ONLINE_TAG_TEXT "文字列・データ処理"
+    IDS_STRING_ONLINE_TAG_STUDY "学習・練習"
+    IDS_STRING_ONLINE_TAG_TOOL "ツール・シミュレーション"
+    IDS_STRING_ONLINE_TAG_OTHER "その他"
+    IDS_STRING_ONLINE_FILE  "ファイル名"
+    IDS_STRING_ONLINE_AUTHOR "作成者"
+    IDS_STRING_ONLINE_PASSWORD "編集パスワード"
+    IDS_STRING_ONLINE_MEMO  "メモ"
+    IDS_STRING_ONLINE_TAGS  "ジャンル"
+    IDS_STRING_ONLINE_SAVE_NEW "新しいファイルとして保存する"
+    IDS_STRING_ONLINE_PRIVATE "非公開"
+    IDS_STRING_ONLINE_SAVE_BUTTON "保存"
+    IDS_STRING_ONLINE_CANCEL_BUTTON "キャンセル"
+    IDS_STRING_ONLINE_OK_BUTTON "OK"
+    IDS_STRING_ONLINE_CONFIRM_PRIVATE
+                            "非公開に設定するとオンライン一覧に表示されなくなります。\nURLを知っている人だけが開けるため、URLを保存しておいてください。"
+    IDS_STRING_ONLINE_ERROR_UNAUTHORIZED "パスワードが間違っています。"
+    IDS_STRING_ONLINE_ERROR_NOT_FOUND "ファイルが見つかりません。"
+    IDS_STRING_ONLINE_ERROR_CONNECTION "接続に失敗しました。"
+    IDS_STRING_ONLINE_ERROR_CONFLICT "既に存在するファイル名です。\n別の名前で保存してください。"
+    IDS_STRING_ONLINE_ERROR_NAME_TOO_LONG "ファイル名が長すぎます。"
+    IDS_STRING_ONLINE_ERROR_AUTHOR_TOO_LONG "作成者が長すぎます。"
+    IDS_STRING_ONLINE_ERROR_NAME_NOT_ENTERED "ファイル名が入力されていません。"
+    IDS_STRING_ONLINE_ERROR_AUTHOR_NOT_ENTERED "作成者が入力されていません。"
+    IDS_STRING_ONLINE_ERROR_PASSWORD_NOT_ENTERED "編集パスワードが入力されていません。"
+    IDS_STRING_ONLINE_SEARCH "検索"
+END
+
 #endif    // 日本語 (日本) resources
 /////////////////////////////////////////////////////////////////////////////
 
@@ -272,6 +323,10 @@ BEGIN
         MENUITEM "&Open...\tCtrl+O",            ID_MENUITEM_OPEN
         MENUITEM "&Save\tCtrl+S",               ID_MENUITEM_SAVE
         MENUITEM "Save &As...",                 ID_MENUITEM_SAVEAS
+        MENUITEM SEPARATOR
+        MENUITEM "Open onlin&e...",             ID_MENUITEM_ONLINE_OPEN
+        MENUITEM "Save to onl&ine...",          ID_MENUITEM_ONLINE_SAVE
+        MENUITEM "Revision &history...",        ID_MENUITEM_ONLINE_HISTORY
         MENUITEM SEPARATOR
         MENUITEM "&Font...",                    ID_MENUITEM_FONT
         MENUITEM "&Line number",                ID_MENUITEM_LINE_NO
@@ -351,6 +406,53 @@ BEGIN
     ID_MENUITEM_EXEC        "Exec"
     ID_MENUITEM_STOP        "Stop"
     ID_MENUITEM_STEP        "Step exec"
+END
+
+STRINGTABLE
+BEGIN
+    IDS_STRING_ONLINE_OPEN_TITLE "Open online"
+    IDS_STRING_ONLINE_SAVE_TITLE "Save to online"
+    IDS_STRING_ONLINE_HISTORY_TITLE "Revision history"
+    IDS_STRING_ONLINE_COPY  "Copy URL"
+    IDS_STRING_ONLINE_COPY_AUTORUN "Copy autorun URL"
+    IDS_STRING_ONLINE_REMOVE "Remove"
+    IDS_STRING_ONLINE_REMOVE_PASSWORD "Enter the edit password."
+    IDS_STRING_ONLINE_READ_MORE "Read more..."
+    IDS_STRING_ONLINE_HISTORY_CURRENT "Current version"
+    IDS_STRING_ONLINE_FILTER_ALL "All"
+    IDS_STRING_ONLINE_FILTER_MINE "Mine"
+    IDS_STRING_ONLINE_SORT_POPULAR "Popular"
+    IDS_STRING_ONLINE_SORT_NEW "Newest"
+    IDS_STRING_ONLINE_TAG_GAME "Game"
+    IDS_STRING_ONLINE_TAG_GRAPHICS "Graphics & animation"
+    IDS_STRING_ONLINE_TAG_MATH "Math"
+    IDS_STRING_ONLINE_TAG_ALGORITHM "Algorithm"
+    IDS_STRING_ONLINE_TAG_TEXT "Text & data"
+    IDS_STRING_ONLINE_TAG_STUDY "Study & practice"
+    IDS_STRING_ONLINE_TAG_TOOL "Tools & simulation"
+    IDS_STRING_ONLINE_TAG_OTHER "Other"
+    IDS_STRING_ONLINE_FILE  "File name"
+    IDS_STRING_ONLINE_AUTHOR "Author"
+    IDS_STRING_ONLINE_PASSWORD "Edit password"
+    IDS_STRING_ONLINE_MEMO  "Memo"
+    IDS_STRING_ONLINE_TAGS  "Genre"
+    IDS_STRING_ONLINE_SAVE_NEW "Save as new file"
+    IDS_STRING_ONLINE_PRIVATE "Private"
+    IDS_STRING_ONLINE_SAVE_BUTTON "Save"
+    IDS_STRING_ONLINE_CANCEL_BUTTON "Cancel"
+    IDS_STRING_ONLINE_OK_BUTTON "OK"
+    IDS_STRING_ONLINE_CONFIRM_PRIVATE
+                            "If set to private, it will not appear in the online list.\nSave the URL, as only those who know the URL can open it."
+    IDS_STRING_ONLINE_ERROR_UNAUTHORIZED "Incorrect password."
+    IDS_STRING_ONLINE_ERROR_NOT_FOUND "File not found."
+    IDS_STRING_ONLINE_ERROR_CONNECTION "Connection failed."
+    IDS_STRING_ONLINE_ERROR_CONFLICT "File name already exists.\nPlease change it to another name."
+    IDS_STRING_ONLINE_ERROR_NAME_TOO_LONG "File name is too long."
+    IDS_STRING_ONLINE_ERROR_AUTHOR_TOO_LONG "Author is too long."
+    IDS_STRING_ONLINE_ERROR_NAME_NOT_ENTERED "File name is not entered."
+    IDS_STRING_ONLINE_ERROR_AUTHOR_NOT_ENTERED "Author is not entered."
+    IDS_STRING_ONLINE_ERROR_PASSWORD_NOT_ENTERED "Edit password is not entered."
+    IDS_STRING_ONLINE_SEARCH "Search"
 END
 
 #endif    // 英語 (米国) resources

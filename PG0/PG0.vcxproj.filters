@@ -51,6 +51,18 @@
     <ClCompile Include="variable_view.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="http.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="json.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="online.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="online_view.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="script_utility.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -93,6 +105,18 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="variable_view.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="http.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="json.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="online.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="online_view.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="script_utility.h">
