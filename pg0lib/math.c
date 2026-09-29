@@ -13,10 +13,12 @@
 #include <math.h>
 #include <float.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "lib_common.h"
 
 /* Define */
+#define NUMBER_STRING_SIZE		64
 
 /* Global Variables */
 static BOOL random_seeded = FALSE;
@@ -131,18 +133,266 @@ int SFUNC _lib_func_log(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHAR *E
 }
 
 /*
- * random_seed - seed the reproducible generator (mulberry32) from a string
+ * digits_value - the number 0.digits * 10^n
  */
-static void random_seed(const TCHAR *seed)
+static double digits_value(const TCHAR *digits, int k, int n)
 {
-	unsigned int a = 0;
+	TCHAR tmp[NUMBER_STRING_SIZE];
+	int i, len = 0;
+
+	tmp[len++] = TEXT('.');
+	for (i = 0; i < k; i++) {
+		tmp[len++] = digits[i];
+	}
+	wsprintf(tmp + len, TEXT("e%d"), n);
+	return _tcstod(tmp, NULL);
+}
+
+/*
+ * shortest_digits - the fewest significant digits that read back as num (num > 0),
+ *                   num is 0.digits * 10^n
+ */
+static int shortest_digits(double num, TCHAR *digits, int *n)
+{
+	TCHAR tmp[NUMBER_STRING_SIZE];
+	TCHAR *p;
+	int prec, k = 0, i;
+
+	for (prec = 1; prec <= 17; prec++) {
+		_stprintf_s(tmp, NUMBER_STRING_SIZE, TEXT("%.*e"), prec - 1, num);
+		k = 0;
+		for (p = tmp; *p != TEXT('e'); p++) {
+			if (*p != TEXT('.')) {
+				digits[k++] = *p;
+			}
+		}
+		*n = _ttoi(p + 1) + 1;
+		if (digits_value(digits, k, *n) == num) {
+			break;
+		}
+		/* next to a power of two the numbers reading back as num reach further above it,
+		   so the digits one step up may read back when the nearest ones do not */
+		for (i = k - 1; i >= 0 && digits[i] == TEXT('9'); i--) {
+			digits[i] = TEXT('0');
+		}
+		if (i < 0) {
+			digits[0] = TEXT('1');
+			(*n)++;
+		} else {
+			digits[i]++;
+		}
+		if (digits_value(digits, k, *n) == num) {
+			break;
+		}
+	}
+	while (k > 1 && digits[k - 1] == TEXT('0')) {
+		k--;
+	}
+	return k;
+}
+
+/*
+ * js_number_string - format a number like JavaScript's String(num)
+ */
+static void js_number_string(double num, TCHAR *buf)
+{
+	TCHAR digits[NUMBER_STRING_SIZE];
+	TCHAR *r = buf;
+	int k, n, i;
+
+	if (_isnan(num)) {
+		lstrcpy(buf, TEXT("NaN"));
+		return;
+	}
+	if (num == 0) {
+		lstrcpy(buf, TEXT("0"));
+		return;
+	}
+	if (num < 0) {
+		*(r++) = TEXT('-');
+		num = -num;
+	}
+	if (!_finite(num)) {
+		lstrcpy(r, TEXT("Infinity"));
+		return;
+	}
+	k = shortest_digits(num, digits, &n);
+	if (k <= n && n <= 21) {
+		for (i = 0; i < k; i++) {
+			*(r++) = digits[i];
+		}
+		for (; i < n; i++) {
+			*(r++) = TEXT('0');
+		}
+	} else if (0 < n && n <= 21) {
+		for (i = 0; i < k; i++) {
+			if (i == n) {
+				*(r++) = TEXT('.');
+			}
+			*(r++) = digits[i];
+		}
+	} else if (-6 < n && n <= 0) {
+		*(r++) = TEXT('0');
+		*(r++) = TEXT('.');
+		for (i = n; i < 0; i++) {
+			*(r++) = TEXT('0');
+		}
+		for (i = 0; i < k; i++) {
+			*(r++) = digits[i];
+		}
+	} else {
+		*(r++) = digits[0];
+		if (k > 1) {
+			*(r++) = TEXT('.');
+			for (i = 1; i < k; i++) {
+				*(r++) = digits[i];
+			}
+		}
+		r += wsprintf(r, TEXT("e%c%d"), (n - 1 >= 0) ? TEXT('+') : TEXT('-'), abs(n - 1));
+	}
+	*r = TEXT('\0');
+}
+
+/*
+ * js_float_string - format a float like the web version's getValueString()
+ *                   (String(num) cut or padded to 16 decimal places)
+ */
+static void js_float_string(double num, TCHAR *buf)
+{
+	TCHAR *p;
+	int len, i;
+	BOOL zero = TRUE;
+
+	if (_isnan(num)) {
+		lstrcpy(buf, TEXT("0"));
+		return;
+	}
+	js_number_string(num, buf);
+	if (_finite(num) && floor(num) == num) {
+		lstrcat(buf, TEXT(".0000000000000000"));
+		return;
+	}
+	/* length of String(parseInt(num)) */
+	p = buf;
+	if (*p == TEXT('-')) {
+		p++;
+	}
+	for (i = 0; p[i] >= TEXT('0') && p[i] <= TEXT('9'); i++) {
+		if (p[i] != TEXT('0')) {
+			zero = FALSE;
+		}
+	}
+	if (i == 0) {
+		len = 3;
+	} else if (zero) {
+		len = 1;
+	} else {
+		len = (int)(p - buf) + i;
+	}
+	len += 1 + 16;
+	for (i = lstrlen(buf); i < len; i++) {
+		buf[i] = TEXT('0');
+	}
+	buf[len] = TEXT('\0');
+}
+
+/*
+ * seed_add - add the characters of a string to the seed hash
+ */
+static void seed_add(unsigned int *a, const TCHAR *str)
+{
 	const TCHAR *p;
 
-	for (p = seed; *p != TEXT('\0'); p++) {
-		a = a * 31u + (unsigned int)(unsigned short)*p;
+	if (str == NULL) {
+		return;
+	}
+	for (p = str; *p != TEXT('\0'); p++) {
+		*a = *a * 31u + (unsigned int)(unsigned short)*p;
+	}
+}
+
+/*
+ * seed_add_escaped - add a string with its control characters escaped
+ *                    (the web version's reConvCtrl())
+ */
+static void seed_add_escaped(unsigned int *a, const TCHAR *str)
+{
+	const TCHAR *p;
+	TCHAR esc[3] = {TEXT('\\'), TEXT('\0'), TEXT('\0')};
+
+	if (str == NULL) {
+		return;
+	}
+	for (p = str; *p != TEXT('\0'); p++) {
+		switch (*p) {
+		case TEXT('\\'): esc[1] = TEXT('\\'); break;
+		case TEXT('\r'): esc[1] = TEXT('r'); break;
+		case TEXT('\n'): esc[1] = TEXT('n'); break;
+		case TEXT('\t'): esc[1] = TEXT('t'); break;
+		case TEXT('\b'): esc[1] = TEXT('b'); break;
+		case TEXT('"'): esc[1] = TEXT('"'); break;
+		case TEXT('\''): esc[1] = TEXT('\''); break;
+		default: esc[1] = TEXT('\0'); break;
+		}
+		if (esc[1] != TEXT('\0')) {
+			seed_add(a, esc);
+		} else {
+			*a = *a * 31u + (unsigned int)(unsigned short)*p;
+		}
+	}
+}
+
+/*
+ * random_seed - seed the reproducible generator (mulberry32) with a value
+ *               converted to a string in the same way as the web version
+ */
+static void random_seed(VALUE *v)
+{
+	VALUEINFO *vi;
+	TCHAR buf[NUMBER_STRING_SIZE];
+	unsigned int a = 0;
+
+	random_seeded = TRUE;
+	if (v == NULL) {
+		random_state = a;
+		return;
+	}
+	switch (v->type) {
+	case TYPE_STRING:
+		seed_add(&a, v->u.sValue);
+		break;
+	case TYPE_FLOAT:
+		js_number_string(v->u.fValue, buf);
+		seed_add(&a, buf);
+		break;
+	case TYPE_ARRAY:
+		for (vi = v->u.array; vi != NULL; vi = vi->next) {
+			if (vi->v == NULL) {
+				continue;
+			}
+			switch (vi->v->type) {
+			case TYPE_STRING:
+				seed_add_escaped(&a, vi->v->u.sValue);
+				break;
+			case TYPE_FLOAT:
+				js_float_string(vi->v->u.fValue, buf);
+				seed_add(&a, buf);
+				break;
+			case TYPE_ARRAY:
+				break;
+			default:
+				wsprintf(buf, TEXT("%d"), vi->v->u.iValue);
+				seed_add(&a, buf);
+				break;
+			}
+		}
+		break;
+	default:
+		wsprintf(buf, TEXT("%d"), v->u.iValue);
+		seed_add(&a, buf);
+		break;
 	}
 	random_state = a;
-	random_seeded = TRUE;
 }
 
 /*
@@ -164,13 +414,7 @@ static double random_next(void)
 int SFUNC _lib_func_random(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHAR *ErrStr)
 {
 	if (param != NULL) {
-		TCHAR *seed = lib_to_string(param);
-		if (seed == NULL) {
-			lstrcpy(ErrStr, LIB_ERR_ALLOC);
-			return -1;
-		}
-		random_seed(seed);
-		mem_free(&seed);
+		random_seed(param->v);
 	}
 	if (random_seeded) {
 		lib_set_float(ret, random_next());
