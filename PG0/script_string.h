@@ -40,6 +40,7 @@ TCHAR *get_pair_brace(TCHAR *buf);
 BOOL str_trim(TCHAR *buf);
 void str_lower(TCHAR *p);
 int str2hash(TCHAR *str);
+BOOL str_is_ident_char(const TCHAR c);
 
 #endif
 /* End of source */

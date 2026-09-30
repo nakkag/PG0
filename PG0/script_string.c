@@ -579,4 +579,62 @@ int str2hash(TCHAR *str)
 	}
 	return hash;
 }
+
+/*
+ * str_is_ident_char - character of a variable or function name
+ * (letters and digits of any script and '_', like [_\p{L}\p{N}] of the web version)
+ */
+#ifdef UNICODE
+typedef signed char (__cdecl *U_CHAR_TYPE)(int c);
+
+static U_CHAR_TYPE get_u_char_type(void)
+{
+	static volatile LONG state = 0;
+	static U_CHAR_TYPE func = NULL;
+	HMODULE hModule;
+
+	if (state == 0) {
+		// ICU of Windows 10 1903 or later
+		hModule = LoadLibraryEx(TEXT("icu.dll"), NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+		if (hModule != NULL) {
+			func = (U_CHAR_TYPE)GetProcAddress(hModule, "u_charType");
+		}
+		state = 1;
+	}
+	return func;
+}
+#endif
+
+BOOL str_is_ident_char(const TCHAR c)
+{
+#ifdef UNICODE
+	U_CHAR_TYPE u_char_type;
+	WORD type1 = 0, type3 = 0;
+	int category;
+#endif
+
+	if ((c >= TEXT('a') && c <= TEXT('z')) || (c >= TEXT('A') && c <= TEXT('Z')) ||
+		(c >= TEXT('0') && c <= TEXT('9')) || c == TEXT('_')) {
+		return TRUE;
+	}
+#ifdef UNICODE
+	if ((unsigned short)c < 0x80) {
+		return FALSE;
+	}
+	if ((unsigned short)c >= 0xD800 && (unsigned short)c <= 0xDFFF) {
+		// surrogate pair (characters outside the BMP)
+		return TRUE;
+	}
+	if ((u_char_type = get_u_char_type()) != NULL) {
+		// Lu, Ll, Lt, Lm, Lo (1-5) and Nd, Nl, No (9-11)
+		category = u_char_type((unsigned short)c);
+		return ((category >= 1 && category <= 5) || (category >= 9 && category <= 11));
+	}
+	GetStringTypeW(CT_CTYPE1, &c, 1, &type1);
+	GetStringTypeW(CT_CTYPE3, &c, 1, &type3);
+	return ((type1 & (C1_ALPHA | C1_DIGIT)) != 0 || (type3 & C3_ALPHA) != 0);
+#else
+	return ((unsigned char)c >= 0x80);
+#endif
+}
 /* End of source */

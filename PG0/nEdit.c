@@ -66,14 +66,7 @@
 #define KEYWORD_SIZE					10
 
 // character of a variable or function name (letters and digits of any script, '_')
-#ifdef UNICODE
-#define IS_WORD_CHAR(c)			((c >= TEXT('a') && c <= TEXT('z')) || (c >= TEXT('A') && c <= TEXT('Z')) || \
-								(c >= TEXT('0') && c <= TEXT('9')) || c == TEXT('_') || \
-								((unsigned short)(c) >= 0x80 && IsCharAlphaNumeric(c)))
-#else
-#define IS_WORD_CHAR(c)			((c >= TEXT('a') && c <= TEXT('z')) || (c >= TEXT('A') && c <= TEXT('Z')) || \
-								(c >= TEXT('0') && c <= TEXT('9')) || c == TEXT('_') || (unsigned char)(c) >= 0x80)
-#endif
+#define IS_WORD_CHAR(c)			str_is_ident_char(c)
 
 /* Global Variables */
 TCHAR keyword[5][KEYWORD_SIZE] = { TEXT("var"), TEXT("exit"), TEXT("if"), TEXT("else"), TEXT("while") };

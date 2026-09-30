@@ -398,24 +398,7 @@ static void GetExtensionKeyword(PARSEINFO *pi, TCHAR *s)
  */
 static BOOL IsIdentChar(TCHAR c)
 {
-	if ((c >= TEXT('a') && c <= TEXT('z')) || (c >= TEXT('A') && c <= TEXT('Z')) ||
-		(c >= TEXT('0') && c <= TEXT('9')) || c == TEXT('_')) {
-		return TRUE;
-	}
-#ifdef UNICODE
-	if ((unsigned short)c >= 0x80) {
-		if ((unsigned short)c >= 0xD800 && (unsigned short)c <= 0xDFFF) {
-			// surrogate pair (characters outside the BMP)
-			return TRUE;
-		}
-		return (IsCharAlphaNumeric(c) != 0);
-	}
-#else
-	if ((unsigned char)c >= 0x80) {
-		return TRUE;
-	}
-#endif
-	return FALSE;
+	return str_is_ident_char(c);
 }
 
 /*
