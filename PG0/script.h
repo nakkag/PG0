@@ -61,6 +61,13 @@ TCHAR *Preprocessor(SCRIPTINFO *sci, TCHAR *path, TCHAR *p);
 //ä÷êîÉeÅ[ÉuÉã
 void InitFuncAddress();
 LIBFUNC GetFuncAddress(TCHAR *FuncName);
+// built-in library: a table of "_lib_func_..." names, kept until EndScript
+typedef struct _LIBFUNCTBL {
+	const TCHAR *name;
+	LIBFUNC func;
+} LIBFUNCTBL;
+BOOL AddFuncTable(const LIBFUNCTBL *tbl, int count);
+void FreeFuncTables(void);
 
 #endif
 /* End of source */

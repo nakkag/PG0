@@ -116,6 +116,8 @@ static BOOL SaveFile(const HWND hWnd, TCHAR *path);
 static BOOL SaveConfirm(const HWND hWnd);
 static void SetTitle(const HWND hWnd);
 static UINT SpeedMenuId(const int speed);
+static BOOL WriteScriptFile(const HWND hWnd, const TCHAR *path);
+static BOOL GenerateExe(const HWND hWnd);
 static void SetEnableWindow(const HWND hWnd);
 static void Resize(const HWND hWnd);
 static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -747,13 +749,6 @@ static BOOL ReadScriptfile(const HWND hWnd, TCHAR *path)
 static BOOL SaveFile(const HWND hWnd, TCHAR *path)
 {
 	OPENFILENAME of;
-	HANDLE hFile;
-	WCHAR *wbuf;
-	TCHAR *buf;
-	BYTE *cbuf;
-	TCHAR err_str[BUF_SIZE];
-	DWORD ret;
-	int len;
 
 	if (*path == TEXT('\0')) {
 		lstrcpy(path, TEXT(""));
@@ -770,6 +765,26 @@ static BOOL SaveFile(const HWND hWnd, TCHAR *path)
 			return FALSE;
 		}
 	}
+	if (WriteScriptFile(hWnd, path) == FALSE) {
+		return FALSE;
+	}
+	// EDIT の変更フラグを除去する
+	SendMessage(hEdit, EM_SETMODIFY, (WPARAM)FALSE, 0);
+	return TRUE;
+}
+
+/*
+ * WriteScriptFile - 編集中のスクリプトをファイルに書き込む (UTF-8)
+ */
+static BOOL WriteScriptFile(const HWND hWnd, const TCHAR *path)
+{
+	HANDLE hFile;
+	WCHAR *wbuf;
+	TCHAR *buf;
+	BYTE *cbuf;
+	TCHAR err_str[BUF_SIZE];
+	DWORD ret;
+	int len;
 
 	// ファイルを開く
 	hFile = CreateFile(path, GENERIC_READ | GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -825,9 +840,6 @@ static BOOL SaveFile(const HWND hWnd, TCHAR *path)
 	mem_free(&cbuf);
 	mem_free(&wbuf);
 	CloseHandle(hFile);
-	
-	// EDIT の変更フラグを除去する
-	SendMessage(hEdit, EM_SETMODIFY, (WPARAM)FALSE, 0);
 	return TRUE;
 }
 
@@ -886,6 +898,211 @@ static UINT SpeedMenuId(const int speed)
 		return ID_MENUITEM_SPEED_MID;
 	}
 	return ID_MENUITEM_SPEED_LOW;
+}
+
+/*
+ * ReplaceExtension - 拡張子を置き換える
+ */
+static void ReplaceExtension(TCHAR *path, const TCHAR *ext)
+{
+	TCHAR *p, *r;
+
+	for (p = r = path; *p != TEXT('\0'); p++) {
+		if (*p == TEXT('\\') || *p == TEXT('/')) {
+			r = NULL;
+		} else if (*p == TEXT('.')) {
+			r = p;
+		}
+	}
+	if (r == NULL || r == path) {
+		r = p;
+	}
+	lstrcpy(r, ext);
+}
+
+/*
+ * GenerateExe - 編集中のスクリプトを一時ファイルに書き出し、pg0gen.exe で実行ファイルを作成する
+ */
+static BOOL GenerateExe(const HWND hWnd)
+{
+	OPENFILENAME of;
+	SECURITY_ATTRIBUTES sa;
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+	HANDLE hRead = NULL, hWrite = NULL;
+	TCHAR path[MAX_PATH + 1], name[MAX_PATH + 1];
+	TCHAR out[MAX_PATH + 1];
+	TCHAR tmp[MAX_PATH + 1];
+	TCHAR gen[MAX_PATH + 1];
+	TCHAR *cmd, *result = NULL, *msg, *p;
+	char *cbuf = NULL, *tmpbuf;
+	DWORD size, len = 0, code = 1;
+	BOOL ret;
+
+	if (SendMessage(hEdit, WM_GETTEXTLENGTH, 0, 0) == 0) {
+		return FALSE;
+	}
+
+	// 出力ファイルの選択 (既定はスクリプトと同じ場所の .exe)
+	GetFilePathName(file_path, path, name);
+	if (*name != TEXT('\0') && lstrlen(path) + lstrlen(name) + 5 < MAX_PATH) {
+		lstrcpy(out, path);
+		if (*path != TEXT('\0') && *(path + lstrlen(path) - 1) != TEXT('\\')) {
+			lstrcat(out, TEXT("\\"));
+		}
+		lstrcat(out, name);
+		ReplaceExtension(out, TEXT(".exe"));
+	} else {
+		lstrcpy(out, TEXT("program.exe"));
+	}
+	ZeroMemory(&of, sizeof(OPENFILENAME));
+	of.lStructSize = sizeof(OPENFILENAME);
+	of.hwndOwner = hWnd;
+	of.lpstrFilter = TEXT("*.exe\0*.exe\0*.*\0*.*\0\0");
+	of.lpstrTitle = GetResMessage(IDS_STRING_GEN_EXE_TITLE);
+	of.lpstrFile = out;
+	// スクリプトのフォルダで開く (lpstrInitialDir が NULL だと前回の場所が優先される)
+	of.lpstrInitialDir = (*path != TEXT('\0')) ? path : NULL;
+	of.nMaxFile = MAX_PATH - 1;
+	of.lpstrDefExt = TEXT("exe");
+	of.Flags = OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
+	if (GetSaveFileName((LPOPENFILENAME)&of) == FALSE) {
+		return FALSE;
+	}
+
+	// スクリプトを一時ファイルに書き出す (ファイル名はエラー表示に使われるのでスクリプトの名前にする)
+	if (*name == TEXT('\0')) {
+		GetFilePathName(out, tmp, name);
+		ReplaceExtension(name, TEXT(".pg0"));
+	}
+	if (GetTempPath(MAX_PATH, tmp) == 0 || lstrlen(tmp) + lstrlen(name) + 4 >= MAX_PATH) {
+		return FALSE;
+	}
+	lstrcat(tmp, TEXT("pg0\\"));
+	CreateDirectory(tmp, NULL);
+	lstrcat(tmp, name);
+	if (WriteScriptFile(hWnd, tmp) == FALSE) {
+		return FALSE;
+	}
+
+	// pg0.exe と同じフォルダの pg0gen.exe を実行する (#import はスクリプトのフォルダを基準にする)
+	if (GetModuleFileName(NULL, gen, MAX_PATH) == 0) {
+		DeleteFile(tmp);
+		return FALSE;
+	}
+	for (p = gen + lstrlen(gen); p > gen && *(p - 1) != TEXT('\\'); p--);
+	if (p - gen + lstrlen(TEXT("pg0gen.exe")) >= MAX_PATH) {
+		DeleteFile(tmp);
+		return FALSE;
+	}
+	lstrcpy(p, TEXT("pg0gen.exe"));
+	cmd = mem_alloc(sizeof(TCHAR) * (lstrlen(gen) + lstrlen(tmp) + lstrlen(out) + BUF_SIZE));
+	if (cmd == NULL) {
+		DeleteFile(tmp);
+		MessageBox(hWnd, TEXT("Alloc error"), window_title, MB_ICONERROR);
+		return FALSE;
+	}
+	wsprintf(cmd, TEXT("\"%s\" /%s%s \"%s\" \"%s\""), gen,
+#ifdef PG05
+		TEXT(""),
+#else
+		(op.pg05_mode == 0) ? TEXT("p") : TEXT(""),
+#endif
+		(op.strict_val == 0) ? TEXT("") : TEXT("s"), tmp, out);
+
+	// 出力をパイプで受け取る
+	ZeroMemory(&sa, sizeof(sa));
+	sa.nLength = sizeof(sa);
+	sa.bInheritHandle = TRUE;
+	if (CreatePipe(&hRead, &hWrite, &sa, 0) == FALSE) {
+		mem_free(&cmd);
+		DeleteFile(tmp);
+		return FALSE;
+	}
+	SetHandleInformation(hRead, HANDLE_FLAG_INHERIT, 0);
+	ZeroMemory(&si, sizeof(si));
+	si.cb = sizeof(si);
+	si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+	si.wShowWindow = SW_HIDE;
+	si.hStdOutput = hWrite;
+	si.hStdError = hWrite;
+	ZeroMemory(&pi, sizeof(pi));
+	ret = CreateProcess(NULL, cmd, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL,
+		(*path != TEXT('\0')) ? path : NULL, &si, &pi);
+	mem_free(&cmd);
+	CloseHandle(hWrite);
+	if (ret == FALSE) {
+		CloseHandle(hRead);
+		DeleteFile(tmp);
+		msg = mem_alloc(sizeof(TCHAR) * (lstrlen(gen) + BUF_SIZE));
+		if (msg != NULL) {
+			wsprintf(msg, GetResMessage(IDS_STRING_GEN_EXE_ERROR_PG0GEN), gen);
+			MessageBox(hWnd, msg, window_title, MB_ICONERROR);
+			mem_free(&msg);
+		}
+		return FALSE;
+	}
+	while (1) {
+		tmpbuf = mem_alloc(len + BUF_SIZE + 1);
+		if (tmpbuf == NULL) {
+			break;
+		}
+		if (cbuf != NULL) {
+			CopyMemory(tmpbuf, cbuf, len);
+			mem_free(&cbuf);
+		}
+		cbuf = tmpbuf;
+		if (ReadFile(hRead, cbuf + len, BUF_SIZE, &size, NULL) == FALSE || size == 0) {
+			break;
+		}
+		len += size;
+	}
+	WaitForSingleObject(pi.hProcess, INFINITE);
+	GetExitCodeProcess(pi.hProcess, &code);
+	CloseHandle(pi.hThread);
+	CloseHandle(pi.hProcess);
+	CloseHandle(hRead);
+	DeleteFile(tmp);
+
+	// 出力 (pg0gen.exe のコードページ) を文字列にする
+	if (cbuf != NULL) {
+		*(cbuf + len) = '\0';
+		size = MultiByteToWideChar(CP_ACP, 0, cbuf, -1, NULL, 0);
+		result = mem_alloc(sizeof(TCHAR) * (size + 1));
+		if (result != NULL) {
+			MultiByteToWideChar(CP_ACP, 0, cbuf, -1, result, size);
+			for (p = result + lstrlen(result); p > result && (*(p - 1) == TEXT('\r') || *(p - 1) == TEXT('\n')); p--);
+			*p = TEXT('\0');
+		}
+		mem_free(&cbuf);
+	}
+	if (result == NULL) {
+		result = alloc_copy(TEXT(""));
+	}
+
+	// 出力を実行結果に表示する
+	if (result != NULL && *result != TEXT('\0')) {
+		if (SendMessage(hConsoleView, WM_GETTEXTLENGTH, 0, 0) > 0) {
+			// 実行時と同じ区切り線
+			SendMessage(hConsoleView, WM_VIEW_ADDTEXT, 0, (LPARAM)TEXT("\r\n--"));
+		}
+		OutputTime(hConsoleView);
+		SendMessage(hConsoleView, WM_VIEW_ADDTEXT, 0, (LPARAM)((code == 0) ? TEXT(" \x03")TEXT("12") : TEXT(" \x03")TEXT("04")));
+		SendMessage(hConsoleView, WM_VIEW_ADDTEXT, 0, (LPARAM)result);
+	}
+	msg = mem_alloc(sizeof(TCHAR) * (((result != NULL) ? lstrlen(result) : 0) + lstrlen(out) + BUF_SIZE));
+	if (msg != NULL) {
+		if (code == 0) {
+			wsprintf(msg, GetResMessage(IDS_STRING_GEN_EXE_DONE), out);
+			MessageBox(hWnd, msg, window_title, MB_ICONINFORMATION);
+		} else {
+			wsprintf(msg, GetResMessage(IDS_STRING_GEN_EXE_ERROR), (result != NULL) ? result : TEXT(""));
+			MessageBox(hWnd, msg, window_title, MB_ICONERROR);
+		}
+		mem_free(&msg);
+	}
+	mem_free(&result);
+	return (code == 0);
 }
 
 /*
@@ -1269,6 +1486,16 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				wsprintf(buf, TEXT("%s - [%s]"), window_title, file_path);
 				SetWindowText(hWnd, buf);
 			}
+			break;
+
+		case ID_MENUITEM_GEN_EXE:
+			EnterCriticalSection(&cs);
+			if (ed.exec_flag == TRUE) {
+				LeaveCriticalSection(&cs);
+				break;
+			}
+			LeaveCriticalSection(&cs);
+			GenerateExe(hWnd);
 			break;
 
 		case ID_MENUITEM_ONLINE_OPEN:

@@ -33,36 +33,68 @@ static BOOL g_cs_init = FALSE;
 void SFUNC _lib_unload(void);
 
 /*
+ * lib_attach - initialization when the library is loaded
+ */
+static void lib_attach(HINSTANCE hinst)
+{
+	g_sc_hinst = hinst;
+	ZeroMemory(&g_sc, sizeof(g_sc));
+	InitializeCriticalSection(&g_sc.cs);
+	InitializeCriticalSection(&g_sc.screen_cs);
+	InitializeCriticalSection(&g_sc.input_cs);
+	g_cs_init = TRUE;
+	g_sc.bg_color = 0xFFFFFFFF;
+	g_sc.fit = TRUE;
+	timeBeginPeriod(1);
+}
+
+/*
+ * lib_detach - cleanup when the library is unloaded
+ */
+static void lib_detach(void)
+{
+	timeEndPeriod(1);
+	if (g_cs_init) {
+		DeleteCriticalSection(&g_sc.cs);
+		DeleteCriticalSection(&g_sc.screen_cs);
+		DeleteCriticalSection(&g_sc.input_cs);
+		g_cs_init = FALSE;
+	}
+}
+
+#ifdef PG0_STATIC_LIB
+/*
+ * screen_lib_init / screen_lib_term - the library built into a program (no DllMain)
+ */
+void screen_lib_init(void)
+{
+	lib_attach(GetModuleHandle(NULL));
+}
+
+void screen_lib_term(void)
+{
+	_lib_unload();
+	lib_detach();
+}
+#else
+/*
  * DllMain
  */
 BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved)
 {
 	switch (reason) {
 	case DLL_PROCESS_ATTACH:
-		g_sc_hinst = hinst;
 		DisableThreadLibraryCalls(hinst);
-		ZeroMemory(&g_sc, sizeof(g_sc));
-		InitializeCriticalSection(&g_sc.cs);
-		InitializeCriticalSection(&g_sc.screen_cs);
-		InitializeCriticalSection(&g_sc.input_cs);
-		g_cs_init = TRUE;
-		g_sc.bg_color = 0xFFFFFFFF;
-		g_sc.fit = TRUE;
-		timeBeginPeriod(1);
+		lib_attach(hinst);
 		break;
 
 	case DLL_PROCESS_DETACH:
-		timeEndPeriod(1);
-		if (g_cs_init) {
-			DeleteCriticalSection(&g_sc.cs);
-			DeleteCriticalSection(&g_sc.screen_cs);
-			DeleteCriticalSection(&g_sc.input_cs);
-			g_cs_init = FALSE;
-		}
+		lib_detach();
 		break;
 	}
 	return TRUE;
 }
+#endif
 
 /*
  * free_images

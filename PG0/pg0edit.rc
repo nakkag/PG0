@@ -69,8 +69,9 @@ BEGIN
         MENUITEM "開く(&O)...\tCtrl+O",           ID_MENUITEM_OPEN
         MENUITEM "上書き保存(&S)\tCtrl+S",           ID_MENUITEM_SAVE
         MENUITEM "名前を付けて保存(&A)...",             ID_MENUITEM_SAVEAS
+        MENUITEM "EXEファイルを作成(&E)...",           ID_MENUITEM_GEN_EXE
         MENUITEM SEPARATOR
-        MENUITEM "オンラインを開く(&E)...",             ID_MENUITEM_ONLINE_OPEN
+        MENUITEM "オンラインを開く(&B)...",             ID_MENUITEM_ONLINE_OPEN
         MENUITEM "オンラインに保存(&I)...",             ID_MENUITEM_ONLINE_SAVE
         MENUITEM "変更履歴(&H)...",                 ID_MENUITEM_ONLINE_HISTORY
         MENUITEM SEPARATOR
@@ -304,6 +305,14 @@ BEGIN
     IDS_STRING_ONLINE_SEARCH "検索"
 END
 
+STRINGTABLE
+BEGIN
+    IDS_STRING_GEN_EXE_TITLE "EXEファイルを作成"
+    IDS_STRING_GEN_EXE_DONE "EXEファイルを作成しました。\n%s"
+    IDS_STRING_GEN_EXE_ERROR "EXEファイルの作成に失敗しました。\n%s"
+    IDS_STRING_GEN_EXE_ERROR_PG0GEN "pg0gen.exe を実行できません。\n%s"
+END
+
 #endif    // 日本語 (日本) resources
 /////////////////////////////////////////////////////////////////////////////
 
@@ -327,8 +336,9 @@ BEGIN
         MENUITEM "&Open...\tCtrl+O",            ID_MENUITEM_OPEN
         MENUITEM "&Save\tCtrl+S",               ID_MENUITEM_SAVE
         MENUITEM "Save &As...",                 ID_MENUITEM_SAVEAS
+        MENUITEM "Create &EXE file...",         ID_MENUITEM_GEN_EXE
         MENUITEM SEPARATOR
-        MENUITEM "Open onlin&e...",             ID_MENUITEM_ONLINE_OPEN
+        MENUITEM "&Browse online...",           ID_MENUITEM_ONLINE_OPEN
         MENUITEM "Save to onl&ine...",          ID_MENUITEM_ONLINE_SAVE
         MENUITEM "Revision &history...",        ID_MENUITEM_ONLINE_HISTORY
         MENUITEM SEPARATOR
@@ -463,6 +473,14 @@ BEGIN
     IDS_STRING_ONLINE_ERROR_PASSWORD_NOT_ENTERED 
                             "Edit password is not entered."
     IDS_STRING_ONLINE_SEARCH "Search"
+END
+
+STRINGTABLE
+BEGIN
+    IDS_STRING_GEN_EXE_TITLE "Create EXE file"
+    IDS_STRING_GEN_EXE_DONE "The EXE file has been created.\n%s"
+    IDS_STRING_GEN_EXE_ERROR "Failed to create the EXE file.\n%s"
+    IDS_STRING_GEN_EXE_ERROR_PG0GEN "pg0gen.exe could not be run.\n%s"
 END
 
 #endif    // 英語 (米国) resources

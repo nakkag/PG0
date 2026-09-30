@@ -41,6 +41,7 @@ static BOOL store_busy = FALSE;
 
 /* Local Function Prototypes */
 
+#ifndef PG0_STATIC_LIB
 /*
  * DllMain
  */
@@ -51,6 +52,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved)
 	}
 	return TRUE;
 }
+#endif
 
 /*
  * console_host - the program is a console program (its stdout adds the CR itself)

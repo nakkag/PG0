@@ -1280,6 +1280,36 @@ static LRESULT CALLBACK ScreenProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 }
 
 /*
+ * window_title - "PG0", or the name of the program (without .exe) when the library is built in
+ */
+static void window_title(TCHAR *title, int size)
+{
+#ifdef PG0_STATIC_LIB
+	TCHAR path[MAX_PATH + 1];
+	TCHAR *p, *name, *ext = NULL;
+
+	if (GetModuleFileName(NULL, path, MAX_PATH) != 0) {
+		for (p = name = path; *p != TEXT('\0'); p++) {
+			if (*p == TEXT('\\') || *p == TEXT('/')) {
+				name = p + 1;
+				ext = NULL;
+			} else if (*p == TEXT('.')) {
+				ext = p;
+			}
+		}
+		if (ext != NULL && ext != name) {
+			*ext = TEXT('\0');
+		}
+		if (*name != TEXT('\0') && lstrlen(name) < size) {
+			lstrcpy(title, name);
+			return;
+		}
+	}
+#endif
+	lstrcpyn(title, SC_WND_TITLE, size);
+}
+
+/*
  * register_class
  */
 static BOOL register_class(void)
@@ -1313,9 +1343,11 @@ static BOOL register_class(void)
 static DWORD WINAPI ui_thread(LPVOID param)
 {
 	MSG msg;
+	TCHAR title[MAX_PATH + 1];
 
 	if (register_class()) {
-		g_hwnd = CreateWindowEx(0, SC_WND_CLASS, SC_WND_TITLE, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+		window_title(title, MAX_PATH);
+		g_hwnd = CreateWindowEx(0, SC_WND_CLASS, title, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
 			CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 			NULL, NULL, g_sc_hinst, NULL);
 	}

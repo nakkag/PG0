@@ -26,6 +26,7 @@ static unsigned int random_state = 0;
 
 /* Local Function Prototypes */
 
+#ifndef PG0_STATIC_LIB
 /*
  * DllMain
  */
@@ -36,6 +37,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved)
 	}
 	return TRUE;
 }
+#endif
 
 /*
  * number_result - store a number, raising an error for NaN

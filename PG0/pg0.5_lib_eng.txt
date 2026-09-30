@@ -65,6 +65,35 @@ If the extension is .dll, the file is loaded as a library without searching for 
 	Scripts that have not been saved to a file share a common storage area.
 * When running with pg0cmd.exe, pressing the close button of the screen window terminates pg0cmd.exe.
 
+# Building a program (pg0gen.exe)
+A script can be turned into a stand-alone program (.exe).
+	pg0gen [/pswc] file.pg0 [out.exe]
+		p	PG0 mode (no PG0.5 extensions)
+		s	Strict variable declaration
+		w	Window application
+		c	Console application
+		out.exe	Default: an .exe with the same name next to the script
+In pg0.exe, "Create EXE file..." in the File menu builds a program from the script being edited
+(choose the output file; pg0gen.exe is run and its output is shown in the console pane).
+pg0gen.exe parses the script and embeds the parse tree (the internal form used for execution)
+into the resources of a template program. The program does not contain the source of the
+script and does not parse the script when it runs.
+	pg0app.exe	Template of a console application
+	pg0appw.exe	Template of a window application (no console window)
+The templates are placed in the same directory as pg0gen.exe.
+Without /w or /c, the program is a window application when the screen library (lib/screen.pg0)
+is used, and a console application otherwise.
+The four libraries screen, math, string and io are built into the program, so the program
+needs neither the lib folder nor the DLLs.
+Other libraries (DLLs loaded with #library) are loaded from the directory of the program
+(or its lib folder); pg0gen.exe copies the required DLLs to the output directory.
+Imported scripts (#import) are included in the program as well.
+Command line arguments are available as argv and argc (as with pg0cmd.exe).
+In a window application the output of print() is not shown
+(when started from a command prompt, it is written to that command prompt).
+input() returns an empty string, and error() and errors are shown in a message box.
+The screen window closes when the script ends.
+
 # Screen API (screen.pg0)
 Can be used with the following import statement.
 	#import("lib/screen.pg0")

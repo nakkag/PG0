@@ -54,6 +54,10 @@
 #define IDS_STRING_ONLINE_ERROR_AUTHOR_NOT_ENTERED 59
 #define IDS_STRING_ONLINE_ERROR_PASSWORD_NOT_ENTERED 60
 #define IDS_STRING_ONLINE_SEARCH        61
+#define IDS_STRING_GEN_EXE_TITLE        62
+#define IDS_STRING_GEN_EXE_DONE         63
+#define IDS_STRING_GEN_EXE_ERROR        64
+#define IDS_STRING_GEN_EXE_ERROR_PG0GEN 65
 #define IDI_ICON_MAIN                   102
 #define IDR_MENU                        103
 #define IDR_ACCELERATOR                 106
@@ -95,13 +99,14 @@
 #define ID_MENUITEM_ONLINE_OPEN         40053
 #define ID_MENUITEM_ONLINE_SAVE         40054
 #define ID_MENUITEM_ONLINE_HISTORY      40055
+#define ID_MENUITEM_GEN_EXE             40056
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        111
-#define _APS_NEXT_COMMAND_VALUE         40056
+#define _APS_NEXT_COMMAND_VALUE         40057
 #define _APS_NEXT_CONTROL_VALUE         1001
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

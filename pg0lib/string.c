@@ -18,6 +18,7 @@
 
 /* Local Function Prototypes */
 
+#ifndef PG0_STATIC_LIB
 /*
  * DllMain
  */
@@ -28,6 +29,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved)
 	}
 	return TRUE;
 }
+#endif
 
 /*
  * is_space - white space as defined by JavaScript's trim()

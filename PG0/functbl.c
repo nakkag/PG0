@@ -14,6 +14,7 @@
 
 #include "script.h"
 #include "script_string.h"
+#include "script_memory.h"
 
 /* Local Function Prototypes */
 //main.c
@@ -39,6 +40,14 @@ typedef struct _FUNCTBL {
 	int name_hash;
 	LIBFUNC func;
 } FUNCTBL;
+
+// tables added by AddFuncTable (built-in libraries)
+typedef struct _FUNCTBLLIST {
+	FUNCTBL *tbl;
+	int count;
+	struct _FUNCTBLLIST *next;
+} FUNCTBLLIST;
+static FUNCTBLLIST *ext_tbl = NULL;
 
 FUNCTBL ft[] = {
 	TEXT("_lib_func_error"), 0, _lib_func_error,
@@ -74,6 +83,7 @@ void InitFuncAddress()
  */
 LIBFUNC GetFuncAddress(TCHAR *FuncName)
 {
+	FUNCTBLLIST *list;
 	int name_hash;
 	int i;
 
@@ -83,6 +93,61 @@ LIBFUNC GetFuncAddress(TCHAR *FuncName)
 			return (ft + i)->func;
 		}
 	}
+	for (list = ext_tbl; list != NULL; list = list->next) {
+		for (i = 0; i < list->count; i++) {
+			if ((list->tbl + i)->name_hash == name_hash && lstrcmp((list->tbl + i)->name, FuncName) == 0) {
+				return (list->tbl + i)->func;
+			}
+		}
+	}
 	return NULL;
+}
+
+/*
+ * AddFuncTable - add the function table of a built-in library
+ */
+BOOL AddFuncTable(const LIBFUNCTBL *tbl, int count)
+{
+	FUNCTBLLIST *list, *pl;
+	int i;
+
+	list = mem_calloc(sizeof(FUNCTBLLIST));
+	if (list == NULL) {
+		return FALSE;
+	}
+	list->tbl = mem_calloc(sizeof(FUNCTBL) * count);
+	if (list->tbl == NULL) {
+		mem_free(&list);
+		return FALSE;
+	}
+	for (i = 0; i < count; i++) {
+		(list->tbl + i)->name = (TCHAR *)(tbl + i)->name;
+		(list->tbl + i)->name_hash = str2hash((TCHAR *)(tbl + i)->name);
+		(list->tbl + i)->func = (tbl + i)->func;
+	}
+	list->count = count;
+	// searched in the order the tables were added
+	if (ext_tbl == NULL) {
+		ext_tbl = list;
+	} else {
+		for (pl = ext_tbl; pl->next != NULL; pl = pl->next);
+		pl->next = list;
+	}
+	return TRUE;
+}
+
+/*
+ * FreeFuncTables - release the tables added by AddFuncTable
+ */
+void FreeFuncTables(void)
+{
+	FUNCTBLLIST *list, *next;
+
+	for (list = ext_tbl; list != NULL; list = next) {
+		next = list->next;
+		mem_free(&list->tbl);
+		mem_free(&list);
+	}
+	ext_tbl = NULL;
 }
 /* End of source */

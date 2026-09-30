@@ -72,6 +72,9 @@ function Get-TargetFiles([string]$binDir) {
 	$files = [ordered]@{
 		(Join-Path $binDir "pg0.exe")                     = "pg0.exe"
 		(Join-Path $binDir "pg0cmd.exe")                  = "pg0cmd.exe"
+		(Join-Path $binDir "pg0gen.exe")                  = "pg0gen.exe"
+		(Join-Path $binDir "pg0app.exe")                  = "pg0app.exe"
+		(Join-Path $binDir "pg0appw.exe")                 = "pg0appw.exe"
 		(Join-Path $binDir "lib\pg0_io.dll")              = "lib\pg0_io.dll"
 		(Join-Path $binDir "lib\pg0_math.dll")            = "lib\pg0_math.dll"
 		(Join-Path $binDir "lib\pg0_string.dll")          = "lib\pg0_string.dll"

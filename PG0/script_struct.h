@@ -257,6 +257,9 @@ typedef struct _EXECINFO {
 	// EXITƒtƒ‰ƒO
 	BOOL exit;
 	BOOL line_mode;
+
+	// line of the token being executed (for errors when the source text is not available)
+	int line;
 } EXECINFO;
 
 //ŠÖ”î•ñ
@@ -305,6 +308,9 @@ typedef struct _SCRIPTINFO {
 
 	long param1;
 	long param2;
+
+	// order in which the scripts were executed (1 = first, 0 = not executed yet)
+	int exec_seq;
 } SCRIPTINFO;
 
 #endif
