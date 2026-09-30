@@ -189,8 +189,8 @@ IDR_TOOLBAR_96          BITMAP                  "toolbar96.bmp"
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,3,7,0
- PRODUCTVERSION 0,3,7,0
+ FILEVERSION 0,4,0,0
+ PRODUCTVERSION 0,4,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -207,12 +207,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "*"
             VALUE "FileDescription", "PG0"
-            VALUE "FileVersion", "0.3.7.0"
+            VALUE "FileVersion", "0.4.0.0"
             VALUE "InternalName", "PG0"
-            VALUE "LegalCopyright", "Copyright (C) 1996-2024 by Ohno Tomoaki. All rights reserved."
+            VALUE "LegalCopyright", "Copyright (C) 1996-2026 by Ohno Tomoaki. All rights reserved."
             VALUE "OriginalFilename", "pg0.exe"
             VALUE "ProductName", "PG0"
-            VALUE "ProductVersion", "0.3.7.0"
+            VALUE "ProductVersion", "0.4.0.0"
         END
     END
     BLOCK "VarFileInfo"
@@ -244,17 +244,6 @@ BEGIN
     IDS_STRING_HEADER_VALUE "値"
     IDS_STRING_CONFIRM_TUTORIAL 
                             "チュートリアルを表示しますか？\n\n以降このメッセージを表示しない場合は「いいえ」を選択してください。"
-END
-
-STRINGTABLE
-BEGIN
-    ID_MENUITEM_EXEC        "実行"
-    ID_MENUITEM_STOP        "停止"
-    ID_MENUITEM_STEP        "ステップ実行"
-END
-
-STRINGTABLE
-BEGIN
     IDS_STRING_ONLINE_OPEN_TITLE "オンラインを開く"
     IDS_STRING_ONLINE_SAVE_TITLE "オンラインに保存"
     IDS_STRING_ONLINE_HISTORY_TITLE "変更履歴"
@@ -267,6 +256,17 @@ BEGIN
     IDS_STRING_ONLINE_FILTER_ALL "すべて"
     IDS_STRING_ONLINE_FILTER_MINE "自分の"
     IDS_STRING_ONLINE_SORT_POPULAR "人気順"
+END
+
+STRINGTABLE
+BEGIN
+    ID_MENUITEM_EXEC        "実行"
+    ID_MENUITEM_STOP        "停止"
+    ID_MENUITEM_STEP        "ステップ実行"
+END
+
+STRINGTABLE
+BEGIN
     IDS_STRING_ONLINE_SORT_NEW "新着順"
     IDS_STRING_ONLINE_TAG_GAME "ゲーム"
     IDS_STRING_ONLINE_TAG_GRAPHICS "図形・アニメーション"
@@ -283,10 +283,14 @@ BEGIN
     IDS_STRING_ONLINE_TAGS  "ジャンル"
     IDS_STRING_ONLINE_SAVE_NEW "新しいファイルとして保存する"
     IDS_STRING_ONLINE_PRIVATE "非公開"
+END
+
+STRINGTABLE
+BEGIN
     IDS_STRING_ONLINE_SAVE_BUTTON "保存"
     IDS_STRING_ONLINE_CANCEL_BUTTON "キャンセル"
     IDS_STRING_ONLINE_OK_BUTTON "OK"
-    IDS_STRING_ONLINE_CONFIRM_PRIVATE
+    IDS_STRING_ONLINE_CONFIRM_PRIVATE 
                             "非公開に設定するとオンライン一覧に表示されなくなります。\nURLを知っている人だけが開けるため、URLを保存しておいてください。"
     IDS_STRING_ONLINE_ERROR_UNAUTHORIZED "パスワードが間違っています。"
     IDS_STRING_ONLINE_ERROR_NOT_FOUND "ファイルが見つかりません。"
@@ -399,17 +403,6 @@ BEGIN
     IDS_STRING_HEADER_VALUE "Value"
     IDS_STRING_CONFIRM_TUTORIAL 
                             "Would you like to display the tutorial?\n\nSelect ""No"" if you do not want to display this message at a later time."
-END
-
-STRINGTABLE
-BEGIN
-    ID_MENUITEM_EXEC        "Exec"
-    ID_MENUITEM_STOP        "Stop"
-    ID_MENUITEM_STEP        "Step exec"
-END
-
-STRINGTABLE
-BEGIN
     IDS_STRING_ONLINE_OPEN_TITLE "Open online"
     IDS_STRING_ONLINE_SAVE_TITLE "Save to online"
     IDS_STRING_ONLINE_HISTORY_TITLE "Revision history"
@@ -422,6 +415,17 @@ BEGIN
     IDS_STRING_ONLINE_FILTER_ALL "All"
     IDS_STRING_ONLINE_FILTER_MINE "Mine"
     IDS_STRING_ONLINE_SORT_POPULAR "Popular"
+END
+
+STRINGTABLE
+BEGIN
+    ID_MENUITEM_EXEC        "Exec"
+    ID_MENUITEM_STOP        "Stop"
+    ID_MENUITEM_STEP        "Step exec"
+END
+
+STRINGTABLE
+BEGIN
     IDS_STRING_ONLINE_SORT_NEW "Newest"
     IDS_STRING_ONLINE_TAG_GAME "Game"
     IDS_STRING_ONLINE_TAG_GRAPHICS "Graphics & animation"
@@ -438,20 +442,26 @@ BEGIN
     IDS_STRING_ONLINE_TAGS  "Genre"
     IDS_STRING_ONLINE_SAVE_NEW "Save as new file"
     IDS_STRING_ONLINE_PRIVATE "Private"
+END
+
+STRINGTABLE
+BEGIN
     IDS_STRING_ONLINE_SAVE_BUTTON "Save"
     IDS_STRING_ONLINE_CANCEL_BUTTON "Cancel"
     IDS_STRING_ONLINE_OK_BUTTON "OK"
-    IDS_STRING_ONLINE_CONFIRM_PRIVATE
+    IDS_STRING_ONLINE_CONFIRM_PRIVATE 
                             "If set to private, it will not appear in the online list.\nSave the URL, as only those who know the URL can open it."
     IDS_STRING_ONLINE_ERROR_UNAUTHORIZED "Incorrect password."
     IDS_STRING_ONLINE_ERROR_NOT_FOUND "File not found."
     IDS_STRING_ONLINE_ERROR_CONNECTION "Connection failed."
-    IDS_STRING_ONLINE_ERROR_CONFLICT "File name already exists.\nPlease change it to another name."
+    IDS_STRING_ONLINE_ERROR_CONFLICT 
+                            "File name already exists.\nPlease change it to another name."
     IDS_STRING_ONLINE_ERROR_NAME_TOO_LONG "File name is too long."
     IDS_STRING_ONLINE_ERROR_AUTHOR_TOO_LONG "Author is too long."
     IDS_STRING_ONLINE_ERROR_NAME_NOT_ENTERED "File name is not entered."
     IDS_STRING_ONLINE_ERROR_AUTHOR_NOT_ENTERED "Author is not entered."
-    IDS_STRING_ONLINE_ERROR_PASSWORD_NOT_ENTERED "Edit password is not entered."
+    IDS_STRING_ONLINE_ERROR_PASSWORD_NOT_ENTERED 
+                            "Edit password is not entered."
     IDS_STRING_ONLINE_SEARCH "Search"
 END
 

@@ -1620,7 +1620,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 						mem_free(&buf);
 					}
 				}
-				lstrcat(var_msg, TEXT("\nCopyright (C) 1996-2024 by Ohno Tomoaki. All rights reserved.\n\n")
+				lstrcat(var_msg, TEXT("\nCopyright (C) 1996-2026 by Ohno Tomoaki. All rights reserved.\n\n")
 					TEXT("WEB SITE: https://nakka.com/\nE-MAIL: nakka@nakka.com"));
 				MessageBox(hWnd, var_msg, TEXT("About"), MB_OK | MB_ICONINFORMATION);
 			}

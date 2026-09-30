@@ -505,6 +505,6 @@ setKey(list[], n, key)
 		0
 
 --
-Copyright (C) 1996-2024 by Ohno Tomoaki. All rights reserved.
+Copyright (C) 1996-2026 by Ohno Tomoaki. All rights reserved.
     WEB SITE: https://nakka.com/
     E-MAIL: nakka@nakka.com
