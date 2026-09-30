@@ -1323,7 +1323,16 @@ static DWORD WINAPI ui_thread(LPVOID param)
 	if (g_hwnd == NULL) {
 		return 0;
 	}
-	while (GetMessage(&msg, NULL, 0, 0) > 0) {
+	for (;;) {
+		/* posted messages are retrieved before input, and a script that keeps drawing
+		   always has a WM_SC_PAINT posted: take the key, mouse and touch input first */
+		if (!PeekMessage(&msg, NULL, 0, 0, PM_REMOVE | PM_QS_INPUT) &&
+			GetMessage(&msg, NULL, 0, 0) <= 0) {
+			break;
+		}
+		if (msg.message == WM_QUIT) {
+			break;
+		}
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
