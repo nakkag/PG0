@@ -1174,6 +1174,16 @@ static void open_show_menu(const HWND hDlg, OPEN_DATA *od, const int index, cons
 }
 
 /*
+ * open_show_filter - show the list filter on the chips and the list
+ */
+static void open_show_filter(OPEN_DATA *od)
+{
+	SendMessage(od->hChips, OCM_SETSEL, filter_index(), 0);
+	// the badges of the chosen genre choose the item instead of the same genre again
+	SendMessage(od->hList, OLM_SETSELTAG, 0, (LPARAM)((tag_index(list_filter) >= 0) ? list_filter : TEXT("")));
+}
+
+/*
  * open_set_filter - change the chip of the list
  */
 static void open_set_filter(const HWND hDlg, OPEN_DATA *od, const int index)
@@ -1185,7 +1195,7 @@ static void open_set_filter(const HWND hDlg, OPEN_DATA *od, const int index)
 	} else if (index - 2 < TAG_COUNT) {
 		lstrcpy(list_filter, tag_ids[index - 2]);
 	}
-	SendMessage(od->hChips, OCM_SETSEL, filter_index(), 0);
+	open_show_filter(od);
 	EnableWindow(od->hSort, lstrcmp(list_filter, TEXT("mine")) != 0);
 	open_reload(hDlg, od);
 }
@@ -1306,7 +1316,7 @@ static void open_init(const HWND hDlg, OPEN_DATA *od)
 	center_window(hDlg, width, height);
 	open_layout(hDlg, od);
 	if (!od->history) {
-		SendMessage(od->hChips, OCM_SETSEL, filter_index(), 0);
+		open_show_filter(od);
 	}
 	open_reload(hDlg, od);
 	SetFocus(od->hList);

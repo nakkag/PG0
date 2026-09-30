@@ -31,6 +31,7 @@
 #define OLM_SETMORE						(WM_APP + 8)	// wParam = TRUE to show the "read more" item
 #define OLM_SETMORETEXT					(WM_APP + 9)	// lParam = text of the "read more" item
 #define OLM_SETCURRENTTEXT				(WM_APP + 10)	// lParam = text of the "current version" badge
+#define OLM_SETSELTAG					(WM_APP + 11)	// lParam = genre chosen as the filter (its badges choose the item)
 
 // chips messages
 #define OCM_ADDCHIP						(WM_APP + 21)	// lParam = label

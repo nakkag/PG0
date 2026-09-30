@@ -94,6 +94,7 @@ typedef struct _LIST_DATA {
 	BOOL loading;
 	TCHAR *more_text;
 	TCHAR *current_text;
+	TCHAR sel_tag[ONLINE_TAG_SIZE];
 	HFONT hNameFont;
 	HFONT hSmallFont;
 	HFONT hTagFont;
@@ -539,8 +540,11 @@ static HIT list_hit(const HWND hWnd, const LIST_DATA *ld, const POINT pt)
 				ReleaseDC(hWnd, hdc);
 				for (j = 0; j < n; j++) {
 					if (PtInRect(&tag_rects[j], pt)) {
-						hit.part = PART_TAG;
-						hit.tag = j;
+						// the badge of the genre already chosen is a part of the item
+						if (*ld->sel_tag == TEXT('\0') || lstrcmp(ld->items[i]->tags[j], ld->sel_tag) != 0) {
+							hit.part = PART_TAG;
+							hit.tag = j;
+						}
 						break;
 					}
 				}
@@ -1112,6 +1116,11 @@ static LRESULT CALLBACK list_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 	case OLM_SETCURRENTTEXT:
 		mem_free(&ld->current_text);
 		ld->current_text = alloc_copy((TCHAR *)lParam);
+		InvalidateRect(hWnd, NULL, FALSE);
+		break;
+
+	case OLM_SETSELTAG:
+		lstrcpyn(ld->sel_tag, (lParam != 0) ? (TCHAR *)lParam : TEXT(""), ONLINE_TAG_SIZE);
 		InvalidateRect(hWnd, NULL, FALSE);
 		break;
 
