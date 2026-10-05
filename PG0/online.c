@@ -24,6 +24,8 @@
 #include "json.h"
 #include "http.h"
 #include "online_view.h"
+#include "text_diff.h"
+#include "diff_view.h"
 #include "online.h"
 #include "resource.h"
 
@@ -46,6 +48,8 @@
 #define REQUEST_SCRIPT					2
 #define REQUEST_REMOVE					3
 #define REQUEST_SAVE					4
+#define REQUEST_PREVIOUS				5
+#define REQUEST_CODE					6
 
 #define RESULT_HISTORY					100
 
@@ -63,17 +67,24 @@
 #define IDC_PRIVATE						1107
 #define IDC_LABEL						1110
 #define IDC_INPUT						1201
+#define IDC_DIFF						1301
 
 #define ID_ITEM_COPY					1
 #define ID_ITEM_COPY_AUTORUN			2
 #define ID_ITEM_HISTORY					3
 #define ID_ITEM_REMOVE					4
+#define ID_ITEM_DIFF					5
+
+#define ID_DIFF_COPY					1
+#define ID_DIFF_SELECT_ALL				2
 
 // sizes in pixels at 96 DPI
 #define DIALOG_MARGIN					20
 #define OPEN_WIDTH						640
 #define SAVE_WIDTH						380
 #define INPUT_WIDTH						320
+#define DIFF_WIDTH						900
+#define DIFF_MARGIN						12
 
 /* Global Variables */
 static HINSTANCE hInst;
@@ -87,6 +98,11 @@ static TCHAR password[BUF_SIZE];
 static TCHAR keyword[BUF_SIZE];
 static TCHAR list_filter[ONLINE_TAG_SIZE];
 static TCHAR list_sort[ONLINE_TAG_SIZE];
+
+// the font and the line numbers of the editor, for the code in the diff
+static LOGFONT code_font;
+static BOOL code_font_set;
+static BOOL code_line_no = TRUE;
 
 // the script opened from or saved to the online storage
 typedef struct _CONTENT {
@@ -134,9 +150,29 @@ typedef struct _OPEN_DATA {
 	int list_id;
 	int script_id;
 	int skip;
+	BOOL more;
 	BOOL closing;
 	REMOVE_REQUEST removes[MAX_REMOVES];
 } OPEN_DATA;
+
+// the dialog of the changes from the previous version
+typedef struct _DIFF_DATA {
+	TCHAR cid[ONLINE_CID_SIZE];
+	double time;
+	double prev_time;
+	BOOL has_prev;
+	int prev_skip;			// place of the previous version in the history when it is not in the list (-1 for none)
+	HFONT hFont;
+	HWND hView;
+	int prev_id;
+	int old_id;
+	int new_id;
+	TCHAR *old_code;		// NULL when there is no previous version
+	TCHAR *new_code;
+	BOOL old_ready;
+	BOOL new_ready;
+	BOOL closing;
+} DIFF_DATA;
 
 // the save dialog
 typedef struct _SAVE_DATA {
@@ -754,7 +790,7 @@ static void make_item(const JSON *js, const BOOL history, const BOOL first, ONLI
 		str = json_get_string(js, TEXT("memo"));
 		item->memo = (TCHAR *)str;
 		item->current = first;
-		item->menu = first;
+		item->menu = TRUE;
 		return;
 	}
 	item->menu = TRUE;
@@ -833,7 +869,8 @@ static void open_request_list(const HWND hDlg, OPEN_DATA *od)
 
 	od->list_id = next_request_id();
 	if (od->history) {
-		wsprintf(buf, TEXT("/api/script/history/%s?count=%d&skip=%d"), od->cid, LIST_COUNT, od->skip);
+		// one more than is shown tells whether older versions remain
+		wsprintf(buf, TEXT("/api/script/history/%s?count=%d&skip=%d"), od->cid, LIST_COUNT + 1, od->skip);
 		url = make_url(buf);
 	} else {
 		// what is in the search box, even if the search button has not been pressed (as the web version)
@@ -872,6 +909,7 @@ static void open_reload(const HWND hDlg, OPEN_DATA *od)
 	SendMessage(od->hList, OLM_CLEAR, 0, 0);
 	SendMessage(od->hList, OLM_SETLOADING, TRUE, 0);
 	od->skip = 0;
+	od->more = FALSE;
 	open_request_list(hDlg, od);
 }
 
@@ -883,7 +921,7 @@ static void open_list_result(const HWND hDlg, OPEN_DATA *od, const HTTP_RESULT *
 	JSON *js = NULL, *item;
 	ONLINE_ITEM oi;
 	TCHAR time[BUF_SIZE];
-	int count = 0;
+	int count = 0, shown, i;
 
 	SendMessage(od->hList, OLM_SETLOADING, FALSE, 0);
 	if (result->status == 200) {
@@ -906,16 +944,25 @@ static void open_list_result(const HWND hDlg, OPEN_DATA *od, const HTTP_RESULT *
 	}
 	SendMessage(od->hList, OLM_SETMORE, FALSE, 0);
 	for (item = js->child; item != NULL; item = item->next) {
+		count++;
+	}
+	// the history is read with one more item than it shows
+	od->more = (od->history) ? (count > LIST_COUNT) : (count >= LIST_COUNT);
+	shown = (count > LIST_COUNT && od->history) ? LIST_COUNT : count;
+	for (item = js->child, i = 0; item != NULL && i < shown; item = item->next, i++) {
 		if (item->type != JSON_OBJECT) {
 			continue;
 		}
 		make_item(item, od->history, (SendMessage(od->hList, OLM_GETCOUNT, 0, 0) == 0), &oi, time);
+		// the first version has nothing to compare with, so its menu would be empty unless it is also the current one
+		if (od->history && !od->more && i == shown - 1 && !oi.current) {
+			oi.menu = FALSE;
+		}
 		SendMessage(od->hList, OLM_ADDITEM, 0, (LPARAM)&oi);
-		count++;
 	}
 	json_free(js);
-	if (count >= LIST_COUNT) {
-		od->skip += count;
+	if (od->more) {
+		od->skip += shown;
 		SendMessage(od->hList, OLM_SETMORE, TRUE, 0);
 	}
 }
@@ -1118,7 +1165,348 @@ static void open_remove_result(const HWND hDlg, OPEN_DATA *od, const HTTP_RESULT
 }
 
 /*
- * open_show_menu - menu of an item (copy the URL, revision history, remove)
+ * diff_end - end the diff dialog; the results that arrive afterwards are dropped
+ */
+static void diff_end(const HWND hDlg, DIFF_DATA *dd)
+{
+	dd->closing = TRUE;
+	EndDialog(hDlg, IDCANCEL);
+}
+
+/*
+ * diff_fail - tell why the versions could not be read and end the diff dialog
+ */
+static void diff_fail(const HWND hDlg, DIFF_DATA *dd, const HTTP_RESULT *result)
+{
+	if (dd->closing) {
+		return;
+	}
+	// the other requests are dropped while the message is shown
+	dd->closing = TRUE;
+	if (result == NULL || result->status == 0 || result->status == 200) {
+		message(hDlg, res(IDS_STRING_ONLINE_ERROR_CONNECTION), MB_ICONEXCLAMATION);
+	} else if (result->status == 404) {
+		message(hDlg, res(IDS_STRING_ONLINE_ERROR_NOT_FOUND), MB_ICONEXCLAMATION);
+	} else {
+		status_message(hDlg, result);
+	}
+	EndDialog(hDlg, IDCANCEL);
+}
+
+/*
+ * diff_request_code - read the code of a version
+ */
+static BOOL diff_request_code(const HWND hDlg, DIFF_DATA *dd, const double time, int *id)
+{
+	TCHAR path[BUF_SIZE];
+	TCHAR *url;
+	BOOL ret;
+
+	_stprintf_s(path, BUF_SIZE, TEXT("/api/script/item/%s/%.0f"), dd->cid, time);
+	if ((url = make_url(path)) == NULL) {
+		return FALSE;
+	}
+	*id = next_request_id();
+	ret = http_request_async(hDlg, WM_HTTP_RESULT, *id, TEXT("GET"), url, NULL, REQUEST_CODE);
+	mem_free(&url);
+	return ret;
+}
+
+/*
+ * diff_request_previous - look up the version saved just before the one shown, past the list read so far
+ */
+static BOOL diff_request_previous(const HWND hDlg, DIFF_DATA *dd)
+{
+	TCHAR path[BUF_SIZE];
+	TCHAR *url;
+	BOOL ret;
+
+	wsprintf(path, TEXT("/api/script/history/%s?count=1&skip=%d"), dd->cid, dd->prev_skip);
+	if ((url = make_url(path)) == NULL) {
+		return FALSE;
+	}
+	dd->prev_id = next_request_id();
+	ret = http_request_async(hDlg, WM_HTTP_RESULT, dd->prev_id, TEXT("GET"), url, NULL, REQUEST_PREVIOUS);
+	mem_free(&url);
+	return ret;
+}
+
+/*
+ * diff_show - compare the two versions once both have been read
+ */
+static void diff_show(const HWND hDlg, DIFF_DATA *dd)
+{
+	DIFF_RESULT *dr;
+
+	if (!dd->old_ready || !dd->new_ready) {
+		return;
+	}
+	dr = text_diff_compare(dd->old_code, (dd->new_code != NULL) ? dd->new_code : TEXT(""));
+	mem_free(&dd->old_code);
+	mem_free(&dd->new_code);
+	SendMessage(dd->hView, DVM_SETLOADING, FALSE, 0);
+	if (dr == NULL) {
+		dd->closing = TRUE;
+		message(hDlg, TEXT("Alloc error"), MB_ICONERROR);
+		EndDialog(hDlg, IDCANCEL);
+		return;
+	}
+	SendMessage(dd->hView, DVM_SETRESULT, 0, (LPARAM)dr);
+}
+
+/*
+ * diff_previous_result - read the code of the version found before the one shown
+ */
+static void diff_previous_result(const HWND hDlg, DIFF_DATA *dd, const HTTP_RESULT *result)
+{
+	JSON *js;
+
+	dd->prev_id = 0;
+	if (result->status != 200) {
+		diff_fail(hDlg, dd, result);
+		return;
+	}
+	if ((js = json_parse(result->body)) == NULL || js->type != JSON_ARRAY) {
+		json_free(js);
+		diff_fail(hDlg, dd, NULL);
+		return;
+	}
+	if (js->child != NULL && js->child->type == JSON_OBJECT) {
+		dd->prev_time = json_get_number(js->child, TEXT("updateTime"), 0);
+		dd->has_prev = TRUE;
+	}
+	json_free(js);
+	if (!dd->has_prev) {
+		// with no version before it, every line is shown as added
+		dd->old_ready = TRUE;
+		diff_show(hDlg, dd);
+	} else if (diff_request_code(hDlg, dd, dd->prev_time, &dd->old_id) == FALSE) {
+		diff_fail(hDlg, dd, NULL);
+	}
+}
+
+/*
+ * diff_code_result - keep the code of a version that was read
+ */
+static void diff_code_result(const HWND hDlg, DIFF_DATA *dd, const HTTP_RESULT *result)
+{
+	JSON *js;
+	const TCHAR *str;
+	TCHAR *code;
+
+	if (result->status != 200) {
+		diff_fail(hDlg, dd, result);
+		return;
+	}
+	if ((js = json_parse(result->body)) == NULL || js->type != JSON_OBJECT) {
+		json_free(js);
+		diff_fail(hDlg, dd, NULL);
+		return;
+	}
+	str = json_get_string(js, TEXT("code"));
+	code = alloc_copy((str != NULL) ? str : TEXT(""));
+	json_free(js);
+	if (code == NULL) {
+		diff_fail(hDlg, dd, NULL);
+		return;
+	}
+	if (result->id == dd->old_id) {
+		dd->old_id = 0;
+		dd->old_code = code;
+		dd->old_ready = TRUE;
+	} else {
+		dd->new_id = 0;
+		dd->new_code = code;
+		dd->new_ready = TRUE;
+	}
+	diff_show(hDlg, dd);
+}
+
+/*
+ * diff_layout - place the view
+ */
+static void diff_layout(const HWND hDlg, DIFF_DATA *dd)
+{
+	RECT client;
+	int margin = Scale(DIFF_MARGIN);
+
+	GetClientRect(hDlg, &client);
+	MoveWindow(dd->hView, margin, margin, client.right - margin * 2, client.bottom - margin * 2, TRUE);
+}
+
+/*
+ * diff_init - make the view and read the two versions at the same time
+ */
+static void diff_init(const HWND hDlg, DIFF_DATA *dd)
+{
+	MONITORINFO mi;
+	int width, height;
+
+	SetWindowText(hDlg, res(IDS_STRING_ONLINE_HISTORY_DIFF));
+	dd->hFont = (code_font_set) ? CreateFontIndirect(&code_font) : NULL;
+	dd->hView = create_control(hDlg, DIFF_VIEW_WND_CLASS, TEXT(""), WS_TABSTOP | WS_VSCROLL | WS_HSCROLL | WS_BORDER, 0, IDC_DIFF, dd->hFont);
+	SendMessage(dd->hView, DVM_SETLINENO, code_line_no, 0);
+	SendMessage(dd->hView, DVM_SETFOLDTEXT, 0, (LPARAM)res(IDS_STRING_ONLINE_DIFF_FOLD));
+	SendMessage(dd->hView, DVM_SETLOADING, TRUE, 0);
+
+	work_area(GetWindow(hDlg, GW_OWNER), &mi);
+	width = Scale(DIFF_WIDTH);
+	if (width > (mi.rcWork.right - mi.rcWork.left) * 9 / 10) {
+		width = (mi.rcWork.right - mi.rcWork.left) * 9 / 10;
+	}
+	height = (mi.rcWork.bottom - mi.rcWork.top) * 85 / 100;
+	center_window(hDlg, width, height);
+	diff_layout(hDlg, dd);
+	SetFocus(dd->hView);
+
+	if (diff_request_code(hDlg, dd, dd->time, &dd->new_id) == FALSE) {
+		diff_fail(hDlg, dd, NULL);
+		return;
+	}
+	if (dd->has_prev) {
+		if (diff_request_code(hDlg, dd, dd->prev_time, &dd->old_id) == FALSE) {
+			diff_fail(hDlg, dd, NULL);
+		}
+	} else if (dd->prev_skip >= 0) {
+		if (diff_request_previous(hDlg, dd) == FALSE) {
+			diff_fail(hDlg, dd, NULL);
+		}
+	} else {
+		dd->old_ready = TRUE;
+	}
+}
+
+/*
+ * diff_show_menu - menu of the view (copy, select all)
+ */
+static void diff_show_menu(const HWND hDlg, DIFF_DATA *dd, const LPARAM lParam)
+{
+	HMENU hMenu;
+	POINT pt;
+	int cmd;
+
+	pt.x = GET_X_LPARAM(lParam);
+	pt.y = GET_Y_LPARAM(lParam);
+	if (pt.x == -1 && pt.y == -1) {
+		// opened from the keyboard
+		pt.x = pt.y = Scale(DIFF_MARGIN);
+		ClientToScreen(dd->hView, &pt);
+	}
+	if ((hMenu = CreatePopupMenu()) == NULL) {
+		return;
+	}
+	AppendMenu(hMenu, MF_STRING | ((SendMessage(dd->hView, DVM_HASSELECTION, 0, 0)) ? 0 : MF_GRAYED), ID_DIFF_COPY, res(IDS_STRING_ONLINE_DIFF_COPY));
+	AppendMenu(hMenu, MF_STRING, ID_DIFF_SELECT_ALL, res(IDS_STRING_ONLINE_DIFF_SELECT_ALL));
+	cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hDlg, NULL);
+	DestroyMenu(hMenu);
+	switch (cmd) {
+	case ID_DIFF_COPY:
+		SendMessage(dd->hView, WM_COPY, 0, 0);
+		break;
+	case ID_DIFF_SELECT_ALL:
+		SendMessage(dd->hView, DVM_SELECTALL, 0, 0);
+		break;
+	}
+}
+
+/*
+ * diff_proc - dialog of the changes from the previous version
+ */
+static INT_PTR CALLBACK diff_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	DIFF_DATA *dd = (DIFF_DATA *)GetWindowLongPtr(hDlg, DWLP_USER);
+
+	switch (msg) {
+	case WM_INITDIALOG:
+		dd = (DIFF_DATA *)lParam;
+		SetWindowLongPtr(hDlg, DWLP_USER, (LONG_PTR)dd);
+		diff_init(hDlg, dd);
+		return FALSE;
+
+	case WM_DESTROY:
+		http_cancel(hDlg);
+		drop_results(hDlg);
+		if (dd != NULL && dd->hFont != NULL) {
+			DeleteObject(dd->hFont);
+			dd->hFont = NULL;
+		}
+		break;
+
+	case WM_SIZE:
+		if (dd != NULL && dd->hView != NULL) {
+			diff_layout(hDlg, dd);
+		}
+		break;
+
+	case WM_GETMINMAXINFO:
+		((MINMAXINFO *)lParam)->ptMinTrackSize.x = Scale(360);
+		((MINMAXINFO *)lParam)->ptMinTrackSize.y = Scale(240);
+		break;
+
+	case WM_CTLCOLORDLG:
+	case WM_CTLCOLORSTATIC:
+		return white_ctlcolor(msg, wParam);
+
+	case WM_CONTEXTMENU:
+		if (dd != NULL && (HWND)wParam == dd->hView) {
+			diff_show_menu(hDlg, dd, lParam);
+			return TRUE;
+		}
+		break;
+
+	case WM_COMMAND:
+		if (LOWORD(wParam) == IDCANCEL) {
+			diff_end(hDlg, dd);
+		}
+		break;
+
+	case WM_HTTP_RESULT:
+		{
+			HTTP_RESULT *result = (HTTP_RESULT *)lParam;
+			if (!dd->closing) {
+				if (result->param == REQUEST_PREVIOUS && result->id == dd->prev_id) {
+					diff_previous_result(hDlg, dd, result);
+				} else if (result->param == REQUEST_CODE && (result->id == dd->old_id || result->id == dd->new_id)) {
+					diff_code_result(hDlg, dd, result);
+				}
+			}
+			http_free_result(result);
+		}
+		break;
+	}
+	return FALSE;
+}
+
+/*
+ * open_show_diff - show the changes of a version from the one saved just before it
+ */
+static void open_show_diff(const HWND hDlg, OPEN_DATA *od, const int index)
+{
+	ONLINE_ITEM *item = (ONLINE_ITEM *)SendMessage(od->hList, OLM_GETITEM, index, 0);
+	ONLINE_ITEM *prev = (ONLINE_ITEM *)SendMessage(od->hList, OLM_GETITEM, index + 1, 0);
+	DIFF_DATA dd;
+
+	if (item == NULL) {
+		return;
+	}
+	ZeroMemory(&dd, sizeof(DIFF_DATA));
+	lstrcpyn(dd.cid, od->cid, ONLINE_CID_SIZE);
+	dd.time = item->update_time;
+	dd.prev_skip = -1;
+	if (prev != NULL) {
+		dd.prev_time = prev->update_time;
+		dd.has_prev = TRUE;
+	} else if (od->more) {
+		// the item is the last one read so far
+		dd.prev_skip = index + 1;
+	}
+	dialog_box(hDlg, WS_THICKFRAME | WS_MAXIMIZEBOX, diff_proc, (LPARAM)&dd);
+	mem_free(&dd.old_code);
+	mem_free(&dd.new_code);
+}
+
+/*
+ * open_show_menu - menu of an item (copy the URL, revision history, remove, compare with the previous version)
  */
 static void open_show_menu(const HWND hDlg, OPEN_DATA *od, const int index, const POINT pt)
 {
@@ -1126,6 +1514,7 @@ static void open_show_menu(const HWND hDlg, OPEN_DATA *od, const int index, cons
 	TCHAR cid[ONLINE_CID_SIZE];
 	TCHAR *url, *tmp;
 	HMENU hMenu;
+	BOOL copy, diff;
 	int cmd;
 
 	if (item == NULL || (hMenu = CreatePopupMenu()) == NULL) {
@@ -1133,13 +1522,26 @@ static void open_show_menu(const HWND hDlg, OPEN_DATA *od, const int index, cons
 	}
 	// the item can be removed from the list while the menu is shown (a removal completes)
 	lstrcpyn(cid, (od->history) ? od->cid : item->cid, ONLINE_CID_SIZE);
+	// the URLs open the current version, so in the history only its item offers them
+	copy = (!od->history || item->current);
+	// only the first version has no item after it
+	diff = (od->history && (index + 1 < (int)SendMessage(od->hList, OLM_GETCOUNT, 0, 0) || od->more));
 	item = NULL;
-	AppendMenu(hMenu, MF_STRING, ID_ITEM_COPY, res(IDS_STRING_ONLINE_COPY));
-	AppendMenu(hMenu, MF_STRING, ID_ITEM_COPY_AUTORUN, res(IDS_STRING_ONLINE_COPY_AUTORUN));
+	if (copy) {
+		AppendMenu(hMenu, MF_STRING, ID_ITEM_COPY, res(IDS_STRING_ONLINE_COPY));
+		AppendMenu(hMenu, MF_STRING, ID_ITEM_COPY_AUTORUN, res(IDS_STRING_ONLINE_COPY_AUTORUN));
+	}
 	if (!od->history) {
 		AppendMenu(hMenu, MF_STRING, ID_ITEM_HISTORY, res(IDS_STRING_ONLINE_HISTORY_TITLE));
 		AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
 		AppendMenu(hMenu, MF_STRING, ID_ITEM_REMOVE, res(IDS_STRING_ONLINE_REMOVE));
+	}
+	if (diff) {
+		AppendMenu(hMenu, MF_STRING, ID_ITEM_DIFF, res(IDS_STRING_ONLINE_HISTORY_DIFF));
+	}
+	if (GetMenuItemCount(hMenu) <= 0) {
+		DestroyMenu(hMenu);
+		return;
 	}
 	cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hDlg, NULL);
 	DestroyMenu(hMenu);
@@ -1169,6 +1571,10 @@ static void open_show_menu(const HWND hDlg, OPEN_DATA *od, const int index, cons
 
 	case ID_ITEM_REMOVE:
 		open_remove(hDlg, od, cid);
+		break;
+
+	case ID_ITEM_DIFF:
+		open_show_diff(hDlg, od, index);
 		break;
 	}
 }
@@ -1806,7 +2212,17 @@ BOOL online_initialize(const HINSTANCE hInstance)
 	for (i = 0; i < TAG_COUNT; i++) {
 		LoadString(hInst, tag_names[i], tag_labels[i], LABEL_SIZE - 1);
 	}
-	return online_view_register(hInstance);
+	return (online_view_register(hInstance) && diff_view_register(hInstance));
+}
+
+/*
+ * online_set_code_view - font and line numbers of the code in the diff, taken from the editor
+ */
+void online_set_code_view(const LOGFONT *font, const BOOL line_no)
+{
+	code_font = *font;
+	code_font_set = TRUE;
+	code_line_no = line_no;
 }
 
 /*

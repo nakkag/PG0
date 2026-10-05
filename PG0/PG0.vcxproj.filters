@@ -63,6 +63,12 @@
     <ClCompile Include="online_view.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="diff_view.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="text_diff.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="script_utility.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -117,6 +123,12 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="online_view.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="diff_view.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="text_diff.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="script_utility.h">

@@ -58,6 +58,10 @@
 #define IDS_STRING_GEN_EXE_DONE         63
 #define IDS_STRING_GEN_EXE_ERROR        64
 #define IDS_STRING_GEN_EXE_ERROR_PG0GEN 65
+#define IDS_STRING_ONLINE_HISTORY_DIFF  66
+#define IDS_STRING_ONLINE_DIFF_FOLD     67
+#define IDS_STRING_ONLINE_DIFF_COPY     68
+#define IDS_STRING_ONLINE_DIFF_SELECT_ALL 69
 #define IDI_ICON_MAIN                   102
 #define IDR_MENU                        103
 #define IDR_ACCELERATOR                 106

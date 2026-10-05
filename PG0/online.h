@@ -27,6 +27,7 @@ typedef struct _ONLINE_SCRIPT {
 BOOL online_initialize(const HINSTANCE hInstance);
 void online_get_ini(const TCHAR *ini_path);
 void online_put_ini(const TCHAR *ini_path);
+void online_set_code_view(const LOGFONT *font, const BOOL line_no);
 void online_clear(void);
 const TCHAR *online_get_name(void);
 const TCHAR *online_get_cid(void);

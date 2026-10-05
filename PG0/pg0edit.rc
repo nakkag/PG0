@@ -311,6 +311,10 @@ BEGIN
     IDS_STRING_GEN_EXE_DONE "EXEファイルを作成しました。\n%s"
     IDS_STRING_GEN_EXE_ERROR "EXEファイルの作成に失敗しました。\n%s"
     IDS_STRING_GEN_EXE_ERROR_PG0GEN "pg0gen.exe を実行できません。\n%s"
+    IDS_STRING_ONLINE_HISTORY_DIFF "一つ前との差分"
+    IDS_STRING_ONLINE_DIFF_FOLD "%d 行"
+    IDS_STRING_ONLINE_DIFF_COPY "コピー(&C)\tCtrl+C"
+    IDS_STRING_ONLINE_DIFF_SELECT_ALL "すべて選択(&A)\tCtrl+A"
 END
 
 #endif    // 日本語 (日本) resources
@@ -481,6 +485,10 @@ BEGIN
     IDS_STRING_GEN_EXE_DONE "The EXE file has been created.\n%s"
     IDS_STRING_GEN_EXE_ERROR "Failed to create the EXE file.\n%s"
     IDS_STRING_GEN_EXE_ERROR_PG0GEN "pg0gen.exe could not be run.\n%s"
+    IDS_STRING_ONLINE_HISTORY_DIFF "Compare with previous version"
+    IDS_STRING_ONLINE_DIFF_FOLD "%d lines"
+    IDS_STRING_ONLINE_DIFF_COPY "&Copy\tCtrl+C"
+    IDS_STRING_ONLINE_DIFF_SELECT_ALL "Select &All\tCtrl+A"
 END
 
 #endif    // 英語 (米国) resources

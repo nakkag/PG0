@@ -1516,6 +1516,8 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				ONLINE_SCRIPT script;
 				BOOL ret;
 
+				// the diff in the revision history shows the code as the editor does
+				online_set_code_view(&lf, (op.line_no != 0));
 				if (LOWORD(wParam) == ID_MENUITEM_ONLINE_HISTORY) {
 					ret = online_history(hWnd, &script);
 				} else {

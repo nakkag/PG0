@@ -154,6 +154,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="console_view.c" />
+    <ClCompile Include="diff_view.c" />
     <ClCompile Include="dpi.c" />
     <ClCompile Include="frame.c" />
     <ClCompile Include="functbl.c" />
@@ -174,11 +175,13 @@
     <ClCompile Include="script_read.c" />
     <ClCompile Include="script_string.c" />
     <ClCompile Include="script_utility.c" />
+    <ClCompile Include="text_diff.c" />
     <ClCompile Include="toolbar.c" />
     <ClCompile Include="variable_view.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="console_view.h" />
+    <ClInclude Include="diff_view.h" />
     <ClInclude Include="dpi.h" />
     <ClInclude Include="frame.h" />
     <ClInclude Include="http.h" />
@@ -193,6 +196,7 @@
     <ClInclude Include="script_string.h" />
     <ClInclude Include="script_struct.h" />
     <ClInclude Include="script_utility.h" />
+    <ClInclude Include="text_diff.h" />
     <ClInclude Include="toolbar.h" />
     <ClInclude Include="variable_view.h" />
   </ItemGroup>
