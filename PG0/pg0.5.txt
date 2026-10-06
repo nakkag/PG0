@@ -381,7 +381,7 @@ var を使って変数を明示的に宣言することもできます。
 #import("cid:スクリプトID")
 	オンラインに保存されたスクリプトを取り込みます。
 	スクリプトIDはスクリプトのURLの cid= の後ろの文字列です。
-		#import("cid:471e2fab-1ec9-4fcd-a87c-55ae118facf7")
+		#import("cid:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx")
 
 ■その他
 コメントは // ～ 行末 です。
