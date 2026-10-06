@@ -65,6 +65,78 @@ Web版と同じインポート文でライブラリを利用できます。
 	ファイルに保存していないスクリプトは共通の保存先になります。
 ・pg0cmd.exe で実行中にスクリーンの閉じるボタンを押すと pg0cmd.exe を終了します。
 
+■コマンドラインでの実行 (pg0cmd.exe)
+スクリプトをコマンドラインで実行します。
+	pg0cmd [-psxvcj] [--オプション...] [file.pg0] [arg1 [arg2...]]
+		-p	PG0モード(PG0.5の拡張を使わない)
+		-s	変数宣言を強制
+		-x	結果を16進数で表示
+		-v, --version	バージョン表示
+		-c, --check	構文チェックのみ行う(実行しない)
+		-j, --json	結果をJSON(UTF-8)で出力
+		--utf8	入出力をUTF-8にする(既定はWindowsのコードページ)
+		--timeout=ms	実行時間の上限(ミリ秒)
+		--max-steps=n	実行ステップ数の上限
+		--input=file	input() が1行ずつ読み取るファイル(UTF-8)
+		--headless	スクリーンのウィンドウを表示せず、サウンドも鳴らさない
+		--screenshot=file	終了時のスクリーンをPNGで保存
+		--screen-input=file	スクリーンへのキー、タッチの操作を書いたファイル
+		file.pg0	省略時は標準入力から1行ずつ読み取って実行
+		arg1	スクリプトに渡す引数(argv, argc で参照)
+1文字のオプションは「-psx」のようにまとめて指定できます(「/psx」も可)。
+終了コードは 0 が正常終了、1 がエラー(構文エラー、実行時エラー、ファイルやオプションの誤り)、
+2 が実行時間かステップ数の上限による停止です。
+print() に配列を渡すと pg0.exe と同じ形式で出力します。
+input() は --input のファイル、リダイレクトされた標準入力、コンソールの順に1行を読み取ります。
+ファイルやリダイレクトの入力が尽きた場合は、Web版と同じく整数の 0 を返します。
+
+・JSONでの出力 (-j)
+	実行結果を1行のJSONで出力します。Web版のAIエージェント用APIの実行結果と同じ形式です。
+		status           "ok"(正常終了) "error"(エラー) "timeout" "step_limit"(上限で停止)
+		mode             実際に動作したモード("PG0.5" または "PG0")
+		output           print() の出力(1,000,000文字を超えると output_truncated が true)
+		error_output     error() の出力とエラーメッセージ
+		result           exit の値(result_type は "integer" "float" "string" "array")
+		error            {"message", "line", "phase"}  phase は "parse"(構文) か "runtime"(実行時)
+		variables        終了時、停止時、エラー時のグローバル変数(名前とキーは小文字)
+		screen           スクリーンを使った場合に {"width", "height", "screenshots": [保存したPNG]}
+		stats            {"steps", "elapsed_ms", "input_lines_used"}
+	-c と合わせて指定すると {"ok", "mode", "error"} を出力します。
+	--timeout を指定した場合、上限を3秒過ぎても停止しないスクリプト(取り込んだスクリプトの
+	中のループや入力待ち)は強制終了します。その場合 variables は null になります。
+
+・スクリーンの確認 (--headless, --screenshot, --screen-input)
+	--headless を指定すると、スクリーンをウィンドウに表示せずに描画だけを行います。
+	(環境変数 PG0_SCREEN_HEADLESS を設定して実行した場合も同じです)
+	--screenshot は終了時(上限による停止時を含む)のスクリーンをPNGファイルに保存します。
+	--screen-input のファイルには1行に1つの操作を書きます。startScreen() が呼ばれた時点から
+	順番に実行されます。座標は startScreen() の座標です。
+		wait ms                  待つ
+		key name [ms]            キーを押して離す(既定は100ミリ秒) 空白キーは Space
+		keydown name             キーを押したままにする
+		keyup name               キーを離す
+		tap x y                  タッチ(クリック)する
+		press x y ms             指定した時間タッチし続ける
+		drag x1 y1 x2 y2 [ms]    ドラッグする(既定は300ミリ秒)
+		move x y                 タッチせずに位置だけを動かす
+		screen file.png          その時点のスクリーンをPNGで保存
+	「#」か「//」で始まる行はコメントです。
+		例) pg0cmd -j --headless --timeout=3000 --screenshot=end.png --screen-input=ops.txt game.pg0
+
+■AIエージェントとの連携
+Claude Code などのAIエージェントに PG0 / PG0.5 のスクリプトを書かせることができます。
+・AGENTS.md
+	pg0.exe と同じディレクトリの AGENTS.md は、AIエージェント向けの説明です。
+	言語仕様の要点、間違えやすい点、pg0cmd.exe での構文チェックと実行の方法を書いています。
+	スクリプトを置くフォルダにコピーしてから、そのフォルダでAIエージェントを起動してください。
+・変更の読み込み
+	pg0.exe で開いているファイルをほかのプログラム(AIエージェントなど)が変更すると、
+	pg0.exe は自動的に読み込み直し、最初に変更された行を表示します。
+	編集中の内容がある場合は、読み込み直すかどうかを確認します。
+	スクリプトの実行中は、実行が終わってから読み込み直します。
+	「ファイル」メニューの「外部での変更を表示(D)...」で、開いた(保存した)内容からの
+	変更を変更履歴と同じ差分の画面で確認できます。
+
 ■実行ファイルの作成 (pg0gen.exe)
 スクリプトを単体の実行ファイル(.exe)にすることができます。
 	pg0gen [/pswc] file.pg0 [out.exe]

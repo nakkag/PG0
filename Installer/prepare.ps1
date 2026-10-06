@@ -88,6 +88,8 @@ function Get-TargetFiles([string]$binDir) {
 		(Join-Path $RootDir "PG0\pg0.5_lib.txt")          = "pg0.5_lib.txt"
 		(Join-Path $RootDir "PG0\pg0.5_lib_eng.txt")      = "pg0.5_lib_eng.txt"
 		(Join-Path $RootDir "PG0\tutorial\tutorial.html") = "tutorial.html"
+		# AI エージェント向けの説明 (リポジトリでは PG0 の開発用の AGENTS.md と区別する名前にしている)
+		(Join-Path $RootDir "PG0\pg0_agents.md")         = "AGENTS.md"
 		(Join-Path $RootDir "LICENSE")                    = "LICENSE.txt"
 	}
 	# チュートリアルの画像 (tutorial.html と同じ場所の image フォルダ)

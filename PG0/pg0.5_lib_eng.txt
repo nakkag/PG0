@@ -65,6 +65,78 @@ If the extension is .dll, the file is loaded as a library without searching for 
 	Scripts that have not been saved to a file share a common storage area.
 * When running with pg0cmd.exe, pressing the close button of the screen window terminates pg0cmd.exe.
 
+# Running from the command line (pg0cmd.exe)
+Runs a script from the command line.
+	pg0cmd [-psxvcj] [--option...] [file.pg0] [arg1 [arg2...]]
+		-p	PG0 mode (no PG0.5 extensions)
+		-s	Strict variable declaration
+		-x	Hex result
+		-v, --version	Version
+		-c, --check	Syntax check only (the script is not run)
+		-j, --json	Output the result as JSON (UTF-8)
+		--utf8	UTF-8 input and output (the default is the code page of Windows)
+		--timeout=ms	Time limit (milliseconds)
+		--max-steps=n	Limit of executed steps
+		--input=file	File read line by line by input() (UTF-8)
+		--headless	No window and no sound for the screen
+		--screenshot=file	Save the screen as PNG at the end
+		--screen-input=file	File of key and touch operations for the screen
+		file.pg0	When omitted, lines are read from the standard input and executed
+		arg1	Arguments passed to the script (argv, argc)
+Single letter options can be combined as in "-psx" ("/psx" is also accepted).
+The exit code is 0 for a normal end, 1 for an error (syntax error, runtime error, wrong file or option),
+and 2 when the script was stopped by the time or step limit.
+print() of an array outputs it in the same format as pg0.exe.
+input() reads a line from the file of --input, the redirected standard input, or the console.
+At the end of the file or the redirected input it returns the integer 0, as the web version does.
+
+* JSON output (-j)
+	The result is output as one line of JSON, in the same format as the result of the AI agent API of the web version.
+		status           "ok", "error", "timeout" or "step_limit" (stopped by a limit)
+		mode             The mode the script ran in ("PG0.5" or "PG0")
+		output           Output of print() (output_truncated is true past 1,000,000 characters)
+		error_output     Output of error() and the error messages
+		result           Value of exit (result_type is "integer", "float", "string" or "array")
+		error            {"message", "line", "phase"}  phase is "parse" or "runtime"
+		variables        Global variables at the end, the stop or the error (names and keys in lower case)
+		screen           {"width", "height", "screenshots": [saved PNG files]} when the screen is used
+		stats            {"steps", "elapsed_ms", "input_lines_used"}
+	With -c, {"ok", "mode", "error"} is output.
+	With --timeout, a script that does not stop within 3 seconds after the limit (a loop in an
+	imported script, or waiting for input) is terminated. In that case variables is null.
+
+* Checking the screen (--headless, --screenshot, --screen-input)
+	With --headless the screen is drawn without showing a window.
+	(Running with the environment variable PG0_SCREEN_HEADLESS set does the same)
+	--screenshot saves the screen at the end (or at the stop by a limit) as a PNG file.
+	The file of --screen-input has one operation per line. The operations are performed in order,
+	starting when startScreen() is called. The coordinates are those of startScreen().
+		wait ms                  Wait
+		key name [ms]            Press and release a key (100 ms by default); the space key is Space
+		keydown name             Hold a key down
+		keyup name               Release a key
+		tap x y                  Touch (click)
+		press x y ms             Keep touching for the time
+		drag x1 y1 x2 y2 [ms]    Drag (300 ms by default)
+		move x y                 Move the position without touching
+		screen file.png          Save the screen at that moment as PNG
+	Lines beginning with "#" or "//" are comments.
+		e.g. pg0cmd -j --headless --timeout=3000 --screenshot=end.png --screen-input=ops.txt game.pg0
+
+# Working with AI agents
+AI agents such as Claude Code can write PG0 / PG0.5 scripts.
+* AGENTS.md
+	AGENTS.md in the same directory as pg0.exe is the guide for AI agents (in Japanese).
+	It describes the essentials of the language, common mistakes, and how to check and run scripts with pg0cmd.exe.
+	Copy it into the folder of your scripts, then start the AI agent in that folder.
+* Reloading changes
+	When another program (such as an AI agent) changes the file opened in pg0.exe,
+	pg0.exe reloads it automatically and shows the first changed line.
+	If there are unsaved changes, it asks whether to reload.
+	While a script is running, the file is reloaded after the script ends.
+	"Show external changes..." in the File menu shows the changes from the text that was
+	opened (or saved), in the same view as the revision history.
+
 # Building a program (pg0gen.exe)
 A script can be turned into a stand-alone program (.exe).
 	pg0gen [/pswc] file.pg0 [out.exe]
