@@ -142,6 +142,15 @@ static BOOL get_ini_path(TCHAR *path)
 }
 
 /*
+ * sc_headless - PG0_SCREEN_HEADLESS=1: the screen is drawn without a window and without sound
+ * (set by "pg0cmd --headless" for programs run by tools)
+ */
+BOOL sc_headless(void)
+{
+	return (GetEnvironmentVariable(SC_HEADLESS_ENV, NULL, 0) > 0);
+}
+
+/*
  * sc_settings_load - window placement and sound setting
  */
 void sc_settings_load(void)
@@ -153,6 +162,11 @@ void sc_settings_load(void)
 	}
 	g_settings_loaded = TRUE;
 	ZeroMemory(&g_settings, sizeof(g_settings));
+	if (sc_headless()) {
+		/* the settings of the window are neither used nor saved */
+		g_sc.mute = TRUE;
+		return;
+	}
 	if (!get_ini_path(path)) {
 		return;
 	}
@@ -489,37 +503,7 @@ static void free_canvas_buffers(void)
  */
 static void composite_canvas(ARGB bg)
 {
-	const DWORD *src = g_snap;
-	DWORD *dst = g_comp_bits;
-	DWORD ba = bg >> 24;
-	DWORD br = (bg >> 16) & 0xFF, bgc = (bg >> 8) & 0xFF, bb = bg & 0xFF;
-	DWORD bgp;
-	SIZE_T i, n = (SIZE_T)g_comp_w * g_comp_h;
-
-	if (ba != 255) {
-		/* a translucent background shows the window color through it, as the Direct2D presenter does */
-		DWORD inv = 255 - ba;
-		br = (br * ba + ((SC_BACK_COLOR >> 16) & 0xFF) * inv + 127) / 255;
-		bgc = (bgc * ba + ((SC_BACK_COLOR >> 8) & 0xFF) * inv + 127) / 255;
-		bb = (bb * ba + (SC_BACK_COLOR & 0xFF) * inv + 127) / 255;
-	}
-	bgp = 0xFF000000 | (br << 16) | (bgc << 8) | bb;
-
-	for (i = 0; i < n; i++) {
-		DWORD p = src[i];
-		DWORD a = p >> 24;
-		if (a == 255) {
-			dst[i] = p;
-		} else if (a == 0) {
-			dst[i] = bgp;
-		} else {
-			DWORD inv = 255 - a;
-			dst[i] = 0xFF000000 |
-				((((p >> 16) & 0xFF) + (br * inv + 127) / 255) << 16) |
-				((((p >> 8) & 0xFF) + (bgc * inv + 127) / 255) << 8) |
-				((p & 0xFF) + (bb * inv + 127) / 255);
-		}
-	}
+	sc_composite_background(g_comp_bits, g_snap, (SIZE_T)g_comp_w * g_comp_h, bg);
 }
 
 /*
@@ -884,8 +868,16 @@ static void key_up(UINT vk)
  */
 static void key_clear(void)
 {
+	int i, n = 0;
+
 	EnterCriticalSection(&g_sc.input_cs);
-	g_sc.key_count = 0;
+	/* the keys pressed by _lib_screen_key() do not depend on the focus */
+	for (i = 0; i < g_sc.key_count; i++) {
+		if (g_sc.keys[i].vk == SC_VK_INJECTED) {
+			g_sc.keys[n++] = g_sc.keys[i];
+		}
+	}
+	g_sc.key_count = n;
 	LeaveCriticalSection(&g_sc.input_cs);
 }
 

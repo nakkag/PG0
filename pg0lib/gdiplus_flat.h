@@ -71,6 +71,7 @@ typedef struct _GdiplusStartupOutput {
 #define PixelFormatAlpha		0x00040000
 #define PixelFormatPAlpha		0x00080000
 #define PixelFormatCanonical	0x00200000
+#define PixelFormat32bppRGB		(9 | (32 << 8) | PixelFormatGDI)
 #define PixelFormat32bppARGB	(10 | (32 << 8) | PixelFormatAlpha | PixelFormatGDI | PixelFormatCanonical)
 #define PixelFormat32bppPARGB	(11 | (32 << 8) | PixelFormatAlpha | PixelFormatPAlpha | PixelFormatGDI)
 
@@ -126,6 +127,7 @@ void WINGDIPAPI GdiplusShutdown(ULONG_PTR token);
 
 GpStatus WINGDIPAPI GdipCreateBitmapFromScan0(INT width, INT height, INT stride, PixelFormat format, BYTE *scan0, GpBitmap **bitmap);
 GpStatus WINGDIPAPI GdipDisposeImage(GpImage *image);
+GpStatus WINGDIPAPI GdipSaveImageToFile(GpImage *image, GDIPCONST WCHAR *filename, GDIPCONST GUID *clsidEncoder, GDIPCONST void *encoderParams);
 
 GpStatus WINGDIPAPI GdipGetImageGraphicsContext(GpImage *image, GpGraphics **graphics);
 GpStatus WINGDIPAPI GdipCreateFromHDC(HDC hdc, GpGraphics **graphics);

@@ -1937,4 +1937,61 @@ DWORD sc_get_pixel(SURFACE *s, int x, int y)
 	if (b > 255) b = 255;
 	return (a << 24) | (r << 16) | (g << 8) | b;
 }
+
+/*
+ * sc_composite_background - premultiplied pixels over the background color (the result is opaque)
+ */
+void sc_composite_background(DWORD *dst, const DWORD *src, SIZE_T count, ARGB bg)
+{
+	DWORD ba = bg >> 24;
+	DWORD br = (bg >> 16) & 0xFF, bgc = (bg >> 8) & 0xFF, bb = bg & 0xFF;
+	DWORD bgp;
+	SIZE_T i;
+
+	if (ba != 255) {
+		/* a translucent background shows the window color through it, as the Direct2D presenter does */
+		DWORD inv = 255 - ba;
+		br = (br * ba + ((SC_BACK_COLOR >> 16) & 0xFF) * inv + 127) / 255;
+		bgc = (bgc * ba + ((SC_BACK_COLOR >> 8) & 0xFF) * inv + 127) / 255;
+		bb = (bb * ba + (SC_BACK_COLOR & 0xFF) * inv + 127) / 255;
+	}
+	bgp = 0xFF000000 | (br << 16) | (bgc << 8) | bb;
+
+	for (i = 0; i < count; i++) {
+		DWORD p = src[i];
+		DWORD a = p >> 24;
+		if (a == 255) {
+			dst[i] = p;
+		} else if (a == 0) {
+			dst[i] = bgp;
+		} else {
+			DWORD inv = 255 - a;
+			dst[i] = 0xFF000000 |
+				((((p >> 16) & 0xFF) + (br * inv + 127) / 255) << 16) |
+				((((p >> 8) & 0xFF) + (bgc * inv + 127) / 255) << 8) |
+				((p & 0xFF) + (bb * inv + 127) / 255);
+		}
+	}
+}
+
+/*
+ * sc_save_png - save opaque pixels as a PNG file
+ */
+BOOL sc_save_png(const DWORD *bits, int w, int h, const TCHAR *path)
+{
+	/* image/png encoder of GDI+ */
+	static const GUID png_encoder = {0x557CF406, 0x1A04, 0x11D3, {0x9A, 0x73, 0x00, 0x00, 0xF8, 0x1E, 0xF3, 0x2E}};
+	GpBitmap *bmp = NULL;
+	GpStatus status;
+
+	if (bits == NULL || w <= 0 || h <= 0 || !gdip_started) {
+		return FALSE;
+	}
+	if (GdipCreateBitmapFromScan0(w, h, w * sizeof(DWORD), PixelFormat32bppRGB, (BYTE *)bits, &bmp) != GpOk) {
+		return FALSE;
+	}
+	status = GdipSaveImageToFile(bmp, path, &png_encoder, NULL);
+	GdipDisposeImage(bmp);
+	return (status == GpOk);
+}
 /* End of source */

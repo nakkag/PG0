@@ -332,13 +332,121 @@ int SFUNC _lib_func_startscreen(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, 
 	LeaveCriticalSection(&g_sc.cs);
 	sc_input_reset();
 
-	if (!sc_window_start()) {
-		lstrcpy(ErrStr, TEXT("Screen window creation failed"));
-		return -1;
+	if (!sc_headless()) {
+		if (!sc_window_start()) {
+			lstrcpy(ErrStr, TEXT("Screen window creation failed"));
+			return -1;
+		}
+		sc_window_show();
 	}
-	sc_window_show();
 	g_sc.started = TRUE;
 	return 0;
+}
+
+/*
+ * _lib_screen_size - size of the screen (FALSE before startScreen())
+ * The _lib_screen_... functions are called by the program that runs the script
+ * (pg0cmd), from any thread, to look at the screen and to operate it.
+ */
+BOOL SFUNC _lib_screen_size(int *w, int *h)
+{
+	BOOL ret;
+
+	EnterCriticalSection(&g_sc.screen_cs);
+	ret = (g_sc.started && g_sc.screen.bits != NULL);
+	if (ret) {
+		*w = g_sc.screen.w;
+		*h = g_sc.screen.h;
+	}
+	LeaveCriticalSection(&g_sc.screen_cs);
+	return ret;
+}
+
+/*
+ * _lib_screen_save - save the screen as a PNG file, as the window shows it
+ */
+BOOL SFUNC _lib_screen_save(const TCHAR *path)
+{
+	DWORD *bits;
+	ARGB bg;
+	SIZE_T count;
+	BOOL ret;
+	int w, h;
+
+	EnterCriticalSection(&g_sc.screen_cs);
+	if (!g_sc.started || g_sc.screen.bits == NULL) {
+		LeaveCriticalSection(&g_sc.screen_cs);
+		return FALSE;
+	}
+	w = g_sc.screen.w;
+	h = g_sc.screen.h;
+	bg = g_sc.bg_color;
+	count = (SIZE_T)w * h;
+	bits = HeapAlloc(GetProcessHeap(), 0, count * sizeof(DWORD));
+	if (bits != NULL) {
+		sc_surface_flush(&g_sc.screen);
+		CopyMemory(bits, g_sc.screen.bits, count * sizeof(DWORD));
+	}
+	LeaveCriticalSection(&g_sc.screen_cs);
+	if (bits == NULL) {
+		return FALSE;
+	}
+	sc_composite_background(bits, bits, count, bg);
+	ret = sc_save_png(bits, w, h, path);
+	HeapFree(GetProcessHeap(), 0, bits);
+	return ret;
+}
+
+/*
+ * _lib_screen_key - press or release a key (the name is the one inKey() uses)
+ */
+void SFUNC _lib_screen_key(const TCHAR *name, BOOL down)
+{
+	int i;
+
+	if (name == NULL || *name == TEXT('\0')) {
+		return;
+	}
+	EnterCriticalSection(&g_sc.input_cs);
+	for (i = 0; i < g_sc.key_count; i++) {
+		if (g_sc.keys[i].vk == SC_VK_INJECTED && str_cmp_i(g_sc.keys[i].name, name) == 0) {
+			break;
+		}
+	}
+	if (down) {
+		if (i == g_sc.key_count && g_sc.key_count < SC_MAX_KEYS) {
+			g_sc.keys[i].vk = SC_VK_INJECTED;
+			lstrcpyn(g_sc.keys[i].name, name, SC_KEY_NAME_SIZE);
+			g_sc.key_count++;
+		}
+	} else if (i < g_sc.key_count) {
+		for (; i < g_sc.key_count - 1; i++) {
+			g_sc.keys[i] = g_sc.keys[i + 1];
+		}
+		g_sc.key_count--;
+	}
+	LeaveCriticalSection(&g_sc.input_cs);
+}
+
+/*
+ * _lib_screen_touch - move, press or release the pointer (in the coordinates of startScreen())
+ */
+void SFUNC _lib_screen_touch(int action, double x, double y)
+{
+	EnterCriticalSection(&g_sc.input_cs);
+	g_sc.touch.x = x;
+	g_sc.touch.y = y;
+	g_sc.touch.count = 1;
+	g_sc.touch.pos[0].x = x;
+	g_sc.touch.pos[0].y = y;
+	if (action == SC_TOUCH_DOWN) {
+		g_sc.touch.touch = 1;
+		g_sc.touch.button = 0;
+	} else if (action == SC_TOUCH_UP) {
+		g_sc.touch.touch = 0;
+		g_sc.touch.button = 0;
+	}
+	LeaveCriticalSection(&g_sc.input_cs);
 }
 
 /*

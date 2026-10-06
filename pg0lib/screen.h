@@ -27,6 +27,13 @@
 #define SC_BUTTON_FULLSCREEN	1
 #define SC_BUTTON_COUNT			2
 #define SC_PI					3.14159265358979323846
+#define SC_VK_INJECTED			0xFFFFFFFF		/* key pressed by _lib_screen_key(), not by the keyboard */
+#define SC_HEADLESS_ENV			TEXT("PG0_SCREEN_HEADLESS")
+
+/* actions of _lib_screen_touch() */
+#define SC_TOUCH_MOVE			0
+#define SC_TOUCH_DOWN			1
+#define SC_TOUCH_UP				2
 
 enum {
 	MASK_NONE = 0,
@@ -147,8 +154,11 @@ BOOL sc_draw_text(SURFACE *s, const TCHAR *text, double x, double y, ARGB color,
 	const TCHAR *style, double size, const TCHAR *face);
 BOOL sc_measure_text(const TCHAR *text, const TCHAR *style, double size, const TCHAR *face, double *w, double *h);
 DWORD sc_get_pixel(SURFACE *s, int x, int y);
+void sc_composite_background(DWORD *dst, const DWORD *src, SIZE_T count, ARGB bg);
+BOOL sc_save_png(const DWORD *bits, int w, int h, const TCHAR *path);
 
 /* screen_window.c */
+BOOL sc_headless(void);
 BOOL sc_window_start(void);
 void sc_window_show(void);
 void sc_window_stop(void);

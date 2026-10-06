@@ -1,5 +1,9 @@
 EXPORTS
 	_lib_unload
+	_lib_screen_size
+	_lib_screen_save
+	_lib_screen_key
+	_lib_screen_touch
 	_lib_func_startscreen
 	_lib_func_sleep
 	_lib_func_time
