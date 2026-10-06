@@ -33,12 +33,23 @@
 #define IS_CID_CHAR(c)			((c >= TEXT('0') && c <= TEXT('9')) || (c >= TEXT('A') && c <= TEXT('Z')) || \
 								(c >= TEXT('a') && c <= TEXT('z')) || c == TEXT('-'))
 
+// result of reading a script for an #import
+#define IMPORT_OK				0
+#define IMPORT_NOT_FOUND		1
+#define IMPORT_ERROR			2
+#define IMPORT_CIRCULAR			3
+
 /* Global Variables */
 
 /* Local Function Prototypes */
 static TCHAR *Utf8ToText(BYTE *buf);
+static BOOL GetScriptFullPath(TCHAR *path, TCHAR *name, TCHAR *full);
+static BOOL IsSameScriptFile(SCRIPTINFO *csci, TCHAR *full);
+static int ExecImportedScript(SCRIPTINFO *csci);
+static int ReadScriptFiles(SCRIPTINFO *sci, TCHAR *path, TCHAR *name);
 static TCHAR *DownloadScript(TCHAR *cid);
-static BOOL ReadScriptCid(SCRIPTINFO *sci, TCHAR *cid);
+static int ReadScriptCid(SCRIPTINFO *sci, TCHAR *cid);
+static TCHAR *PreprocessorLine(SCRIPTINFO *sci, TCHAR *path, TCHAR *p);
 static BOOL IsEmptyScript(TCHAR *buf);
 static void GetModuleDir(TCHAR *dir);
 static BOOL IsLibraryName(TCHAR *name);
@@ -178,18 +189,29 @@ SCRIPTINFO *ReadScriptFile(SCRIPTINFO *sci, TCHAR *path, TCHAR *name)
 	SCRIPTINFO *csci = sci;
 	EXECINFO ei;
 	TCHAR fpath[MAX_PATH + 1];
+	TCHAR full[MAX_PATH + 1];
+	TCHAR *p;
 
-	lstrcpy(fpath, path);
-	if (*path != TEXT('\0') && *(path + lstrlen(path) - 1) != TEXT('\\')) {
-		lstrcat(fpath, TEXT("\\"));
+	// the same file is read once, however its path is written
+	if (GetScriptFullPath(path, name, full) == TRUE) {
+		for (p = full + lstrlen(full); p > full && *(p - 1) != TEXT('\\'); p--);
+		str_cpy_n(fpath, full, (int)(p - full));
+		name = p;
+	} else {
+		*full = TEXT('\0');
+		lstrcpy(fpath, path);
+		if (*path != TEXT('\0') && *(path + lstrlen(path) - 1) != TEXT('\\')) {
+			lstrcat(fpath, TEXT("\\"));
+		}
 	}
 	if (csci->buf != NULL) {
 		//リストの作成
-		while (csci->next != NULL) {
-			csci = csci->next;
-			if (csci->name != NULL && str_cmp_i(name, csci->name) == 0 &&
-				csci->path != NULL && str_cmp_i(fpath, csci->path) == 0) {
+		for (;; csci = csci->next) {
+			if (*full != TEXT('\0') && IsSameScriptFile(csci, full) == TRUE) {
 				return csci;
+			}
+			if (csci->next == NULL) {
+				break;
 			}
 		}
 		csci = csci->next = mem_calloc(sizeof(SCRIPTINFO));
@@ -221,10 +243,66 @@ SCRIPTINFO *ReadScriptFile(SCRIPTINFO *sci, TCHAR *path, TCHAR *name)
 	}
 	//構文解析
 	ZeroMemory(&ei, sizeof(EXECINFO));
-	ei.name = name;
+	ei.name = csci->name;
 	ei.sci = csci;
+	csci->importing = TRUE;
 	csci->tk = ParseSentence(&ei, csci->buf, 0);
+	csci->importing = FALSE;
 	return csci;
+}
+
+/*
+ * GetScriptFullPath - full path of a script file (the same for every way of writing the path)
+ */
+static BOOL GetScriptFullPath(TCHAR *path, TCHAR *name, TCHAR *full)
+{
+	TCHAR buf[MAX_PATH + 1];
+	TCHAR *p;
+	DWORD len;
+
+	if (name == NULL || *name == TEXT('\0') || lstrlen(path) + lstrlen(name) + 1 >= MAX_PATH) {
+		return FALSE;
+	}
+	p = str_cpy(buf, path);
+	if (p > buf && *(p - 1) != TEXT('\\') && *(p - 1) != TEXT('/')) {
+		p = str_cpy(p, TEXT("\\"));
+	}
+	str_cpy(p, name);
+	len = GetFullPathName(buf, MAX_PATH + 1, full, NULL);
+	return (len > 0 && len <= MAX_PATH);
+}
+
+/*
+ * IsSameScriptFile - the script was read from the file (full path)
+ */
+static BOOL IsSameScriptFile(SCRIPTINFO *csci, TCHAR *full)
+{
+	TCHAR buf[MAX_PATH + 1];
+
+	return (csci->path != NULL && GetScriptFullPath(csci->path, csci->name, buf) == TRUE &&
+		str_cmp_i(buf, full) == 0);
+}
+
+/*
+ * ExecImportedScript - run a script read for an #import (a script imported before is not run again)
+ */
+static int ExecImportedScript(SCRIPTINFO *csci)
+{
+	VALUEINFO *rvi = NULL;
+
+	// the scripts are imported while the main script is parsed, so the main script is always being read
+	if (csci->importing == TRUE || csci == csci->sci_top) {
+		return IMPORT_CIRCULAR;
+	}
+	if (csci->buf == NULL || csci->prep_error == TRUE || (csci->tk == NULL && IsEmptyScript(csci->buf) == FALSE)) {
+		return IMPORT_ERROR;
+	}
+	if (csci->tk != NULL && csci->ei == NULL && ExecScript(csci, NULL, &rvi) == -1) {
+		FreeValueList(rvi);
+		return IMPORT_ERROR;
+	}
+	FreeValueList(rvi);
+	return IMPORT_OK;
 }
 
 /*
@@ -373,16 +451,19 @@ static BOOL LoadLibraryFile(SCRIPTINFO *sci, TCHAR *path, TCHAR *FileName)
 /*
  * ReadScriptFiles - スクリプトファイルを検索して読み込む
  */
-BOOL ReadScriptFiles(SCRIPTINFO *sci, TCHAR *path, TCHAR *name)
+static int ReadScriptFiles(SCRIPTINFO *sci, TCHAR *path, TCHAR *name)
 {
 	WIN32_FIND_DATA FindData;
 	HANDLE hFindFile;
 	TCHAR buf[MAX_PATH + 1];
 	TCHAR sPath[MAX_PATH + 1];
+	TCHAR self[MAX_PATH + 1];
+	TCHAR full[MAX_PATH + 1];
 	TCHAR *p, *r;
+	int ret = IMPORT_OK;
 
 	if (lstrlen(path) + lstrlen(name) >= MAX_PATH) {
-		return FALSE;
+		return IMPORT_NOT_FOUND;
 	}
 
 	// 相対パスを結合
@@ -403,32 +484,33 @@ BOOL ReadScriptFiles(SCRIPTINFO *sci, TCHAR *path, TCHAR *name)
 	}
 	str_cpy_n(sPath, buf, (int)(r - buf));
 
+	// a wildcard does not import the importing script itself (naming it is a circular import)
+	for (p = name; *p != TEXT('\0') && *p != TEXT('*') && *p != TEXT('?'); p++);
+	if (*p == TEXT('\0') || GetScriptFullPath(sci->path, sci->name, self) == FALSE) {
+		*self = TEXT('\0');
+	}
+
 	hFindFile = FindFirstFile(buf, &FindData);
 	if (hFindFile == INVALID_HANDLE_VALUE) {
-		return FALSE;
+		return IMPORT_NOT_FOUND;
 	}
 	do {
 		if ((FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
 			SCRIPTINFO *csci;
-			VALUEINFO *rvi = NULL;
-			if (sci->path != NULL && str_cmp_i(sci->path, sPath) == 0 &&
-				sci->name != NULL && str_cmp_i(sci->name, FindData.cFileName) == 0) {
+			if (*self != TEXT('\0') && GetScriptFullPath(sPath, FindData.cFileName, full) == TRUE &&
+				str_cmp_i(self, full) == 0) {
 				// 同一ファイルは読み込まない
 				continue;
 			}
 			csci = ReadScriptFile(sci->sci_top, sPath, FindData.cFileName);
-			if (csci == NULL || (csci->tk == NULL && IsEmptyScript(csci->buf) == FALSE)) {
-				return FALSE;
+			ret = (csci == NULL) ? IMPORT_ERROR : ExecImportedScript(csci);
+			if (ret != IMPORT_OK) {
+				break;
 			}
-			if (csci->tk != NULL && csci->ei == NULL && ExecScript(csci, NULL, &rvi) == -1) {
-				FreeValueList(rvi);
-				return FALSE;
-			}
-			FreeValueList(rvi);
 		}
 	} while (FindNextFile(hFindFile, &FindData) == TRUE);
 	FindClose(hFindFile);
-	return TRUE;
+	return ret;
 }
 
 /*
@@ -471,12 +553,11 @@ static TCHAR *DownloadScript(TCHAR *cid)
 /*
  * ReadScriptCid - read a script stored online (#import("cid:...")) and run it
  */
-static BOOL ReadScriptCid(SCRIPTINFO *sci, TCHAR *cid)
+static int ReadScriptCid(SCRIPTINFO *sci, TCHAR *cid)
 {
 	SCRIPTINFO *tsci = sci->sci_top;
 	SCRIPTINFO *csci, *last;
 	EXECINFO ei;
-	VALUEINFO *rvi = NULL;
 	TCHAR name[IMPORT_CID_SIZE + 4 + 1];
 	TCHAR *buf, *p;
 	int len;
@@ -487,7 +568,7 @@ static BOOL ReadScriptCid(SCRIPTINFO *sci, TCHAR *cid)
 	len = (int)(p - cid);
 	for (; IS_SPACE(*p); p++);
 	if (len == 0 || len >= IMPORT_CID_SIZE || *p != TEXT('\0')) {
-		return FALSE;
+		return IMPORT_ERROR;
 	}
 	// the script is named "cid:<cid>" and has no path
 	lstrcpy(name, IMPORT_CID);
@@ -502,7 +583,7 @@ static BOOL ReadScriptCid(SCRIPTINFO *sci, TCHAR *cid)
 	if (csci == NULL) {
 		buf = DownloadScript(name + lstrlen(IMPORT_CID));
 		if (buf == NULL) {
-			return FALSE;
+			return IMPORT_ERROR;
 		}
 		csci = mem_calloc(sizeof(SCRIPTINFO));
 		if (csci == NULL || (csci->name = alloc_copy(name)) == NULL) {
@@ -511,7 +592,7 @@ static BOOL ReadScriptCid(SCRIPTINFO *sci, TCHAR *cid)
 			ZeroMemory(&ei, sizeof(EXECINFO));
 			ei.sci = sci;
 			Error(&ei, ERR_ALLOC, name, NULL);
-			return FALSE;
+			return IMPORT_ERROR;
 		}
 		csci->buf = buf;
 		csci->sci_top = tsci;
@@ -523,23 +604,30 @@ static BOOL ReadScriptCid(SCRIPTINFO *sci, TCHAR *cid)
 		ZeroMemory(&ei, sizeof(EXECINFO));
 		ei.name = csci->name;
 		ei.sci = csci;
+		csci->importing = TRUE;
 		csci->tk = ParseSentence(&ei, csci->buf, 0);
+		csci->importing = FALSE;
 	}
-	if (csci->tk == NULL && IsEmptyScript(csci->buf) == FALSE) {
-		return FALSE;
-	}
-	if (csci->tk != NULL && csci->ei == NULL && ExecScript(csci, NULL, &rvi) == -1) {
-		FreeValueList(rvi);
-		return FALSE;
-	}
-	FreeValueList(rvi);
-	return TRUE;
+	return ExecImportedScript(csci);
 }
 
 /*
  * Preprocessor - プリプロセッサ
  */
 TCHAR *Preprocessor(SCRIPTINFO *sci, TCHAR *path, TCHAR *p)
+{
+	TCHAR *r;
+
+	if ((r = PreprocessorLine(sci, path, p)) == NULL) {
+		sci->prep_error = TRUE;
+	}
+	return r;
+}
+
+/*
+ * PreprocessorLine - process a preprocessor line (NULL on an error)
+ */
+static TCHAR *PreprocessorLine(SCRIPTINFO *sci, TCHAR *path, TCHAR *p)
 {
 	EXECINFO ei;
 	TCHAR *str;
@@ -577,23 +665,11 @@ TCHAR *Preprocessor(SCRIPTINFO *sci, TCHAR *path, TCHAR *p)
 		lstrcpy(str, str + 1);
 	}
 
-	if (str_cmp_ni(t, PREP_IMPORT, lstrlen(PREP_IMPORT)) == 0 &&
-		str_cmp_ni(str, IMPORT_CID, lstrlen(IMPORT_CID)) == 0) {
-		sci->extension = TRUE;
-		// script stored online
-		if (ReadScriptCid(sci, str + lstrlen(IMPORT_CID)) == FALSE) {
-#ifndef IGNORE_IMPORT_ERROR
-			mem_free(&str);
-			ZeroMemory(&ei, sizeof(EXECINFO));
-			ei.sci = sci;
-			Error(&ei, ERR_SCRIPT, t, NULL);
-			return NULL;
-#endif
-		}
-	} else if (str_cmp_ni(t, PREP_IMPORT, lstrlen(PREP_IMPORT)) == 0) {
+	if (str_cmp_ni(t, PREP_IMPORT, lstrlen(PREP_IMPORT)) == 0) {
 		sci->extension = TRUE;
 		TCHAR cdir[MAX_PATH + 1] = { 0 };
 		TCHAR mdir[MAX_PATH + 1] = { 0 };
+		int ret = IMPORT_NOT_FOUND;
 		if (GetCurrentDirectory(MAX_PATH, cdir) != 0) {
 			lstrcat(cdir, TEXT("\\"));
 		}
@@ -603,21 +679,34 @@ TCHAR *Preprocessor(SCRIPTINFO *sci, TCHAR *path, TCHAR *p)
 		// 2) relative to the current directory (script)
 		// 3) relative to the program directory (script)
 		// 4) library (a ".dll" name skips the script search)
+		// ("cid:<cid>" is a script stored online)
+		// a script is read once however many times it is imported, and importing a script
+		// that is still being read is a circular import
 		// スクリプトファイルまたはライブラリのインポート
 		// 検索順序は以下
 		// 1) スクリプトパスからの相対パス(スクリプト)
 		// 2) カレントディレクトリからの相対パス(スクリプト)
 		// 3) ライブラリ
-		if ((IsLibraryName(str) == TRUE ||
-			(ReadScriptFiles(sci, path, str) == FALSE &&
-			(*cdir == TEXT('\0') || ReadScriptFiles(sci, cdir, str) == FALSE) &&
-			(*mdir == TEXT('\0') || ReadScriptFiles(sci, mdir, str) == FALSE))) &&
-			LoadLibraryFile(sci, path, str) == FALSE) {
+		if (str_cmp_ni(str, IMPORT_CID, lstrlen(IMPORT_CID)) == 0) {
+			ret = ReadScriptCid(sci, str + lstrlen(IMPORT_CID));
+		} else if (IsLibraryName(str) == FALSE) {
+			ret = ReadScriptFiles(sci, path, str);
+			if (ret == IMPORT_NOT_FOUND && *cdir != TEXT('\0')) {
+				ret = ReadScriptFiles(sci, cdir, str);
+			}
+			if (ret == IMPORT_NOT_FOUND && *mdir != TEXT('\0')) {
+				ret = ReadScriptFiles(sci, mdir, str);
+			}
+		}
+		if (ret == IMPORT_NOT_FOUND) {
+			ret = (LoadLibraryFile(sci, path, str) == TRUE) ? IMPORT_OK : IMPORT_ERROR;
+		}
+		if (ret != IMPORT_OK) {
 #ifndef IGNORE_IMPORT_ERROR
 			mem_free(&str);
 			ZeroMemory(&ei, sizeof(EXECINFO));
 			ei.sci = sci;
-			Error(&ei, ERR_SCRIPT, t, NULL);
+			Error(&ei, (ret == IMPORT_CIRCULAR) ? ERR_IMPORT_CIRCULAR : ERR_SCRIPT, t, NULL);
 			return NULL;
 #endif
 		}

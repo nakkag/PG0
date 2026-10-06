@@ -38,6 +38,7 @@ typedef enum {
 	ERR_SCRIPT,
 	ERR_FUNCTION,
 	ERR_FUNCTION_EXEC,
+	ERR_IMPORT_CIRCULAR,
 } ERROR_CODE;
 
 // 戻り値タイプ
@@ -311,6 +312,10 @@ typedef struct _SCRIPTINFO {
 
 	// order in which the scripts were executed (1 = first, 0 = not executed yet)
 	int exec_seq;
+	// the script is being read for an #import (importing it again is a circular import)
+	BOOL importing;
+	// a preprocessor line failed (a script of #import lines only has no tokens either way)
+	BOOL prep_error;
 } SCRIPTINFO;
 
 #endif

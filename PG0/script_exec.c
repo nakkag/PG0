@@ -42,6 +42,7 @@ TCHAR err_jp[][BUF_SIZE] = {
 	TEXT("スクリプトまたはライブラリの読み込みに失敗しました"),
 	TEXT("関数が見つかりません"),
 	TEXT("関数実行中にエラーが発生しました"),
+	TEXT("スクリプトの取り込みが循環しています"),
 };
 
 TCHAR err_en[][BUF_SIZE] = {
@@ -61,6 +62,7 @@ TCHAR err_en[][BUF_SIZE] = {
 	TEXT("Read error in script or library"),
 	TEXT("Function not Found"),
 	TEXT("Function error"),
+	TEXT("Circular import"),
 };
 
 /* Local Function Prototypes */

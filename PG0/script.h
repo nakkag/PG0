@@ -55,7 +55,6 @@ TOKEN *ParseSentence(EXECINFO *ei, TCHAR *buf, int level);
 void GetFilePathName(TCHAR *path, TCHAR *dir, TCHAR *name);
 TCHAR *read_file(TCHAR *path);
 SCRIPTINFO *ReadScriptFile(SCRIPTINFO *sci, TCHAR *path, TCHAR *FileName);
-BOOL ReadScriptFiles(SCRIPTINFO *sci, TCHAR *path, TCHAR *FileName);
 TCHAR *Preprocessor(SCRIPTINFO *sci, TCHAR *path, TCHAR *p);
 
 //ä÷êîÉeÅ[ÉuÉã
