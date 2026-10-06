@@ -17,17 +17,28 @@
 #include "script_string.h"
 #include "script_memory.h"
 #include "script_utility.h"
+#include "http.h"
 
 /* Define */
 #define PREP_IMPORT				TEXT("import")
 #define PREP_LIBRARY			TEXT("library")
 #define PREP_OPTION				TEXT("option")
 
+// #import("cid:<cid>") imports a script stored online
+#define IMPORT_CID				TEXT("cid:")
+#define IMPORT_CID_SIZE			64
+#define IMPORT_URL_PATH			TEXT("/api/script/import/")
+
 #define IS_SPACE(c)				(c == TEXT(' ') || c == TEXT('\t') || c == TEXT('\r') || c == TEXT('\n'))
+#define IS_CID_CHAR(c)			((c >= TEXT('0') && c <= TEXT('9')) || (c >= TEXT('A') && c <= TEXT('Z')) || \
+								(c >= TEXT('a') && c <= TEXT('z')) || c == TEXT('-'))
 
 /* Global Variables */
 
 /* Local Function Prototypes */
+static TCHAR *Utf8ToText(BYTE *buf);
+static TCHAR *DownloadScript(TCHAR *cid);
+static BOOL ReadScriptCid(SCRIPTINFO *sci, TCHAR *cid);
 static BOOL IsEmptyScript(TCHAR *buf);
 static void GetModuleDir(TCHAR *dir);
 static BOOL IsLibraryName(TCHAR *name);
@@ -78,13 +89,11 @@ void GetFilePathName(TCHAR *path, TCHAR *dir, TCHAR *name)
 TCHAR *read_file(TCHAR *path)
 {
 	HANDLE hFile;
-	WCHAR *wbuf;
+	TCHAR *text;
 	BYTE *buf;
 	DWORD fSizeLow, fSizeHigh;
 	DWORD ret;
 	DWORD errcode;
-	int len;
-	int bom = 0;
 
 	// ファイルを開く
 	hFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -113,35 +122,51 @@ TCHAR *read_file(TCHAR *path)
 	}
 	*(buf + ret) = '\0';
 	CloseHandle(hFile);
+	text = Utf8ToText(buf);
+	errcode = GetLastError();
+	mem_free(&buf);
+	SetLastError(errcode);
+	return text;
+}
+
+/*
+ * Utf8ToText - UTF-8 text (with or without a BOM) to the text of a script
+ */
+static TCHAR *Utf8ToText(BYTE *buf)
+{
+	WCHAR *wbuf;
+#ifndef UNICODE
+	BYTE *abuf;
+	DWORD errcode;
+#endif
+	int len;
+	int bom = 0;
+
 	// BOMをスキップ
-	if (ret > 3 && *buf == 0xEF && *(buf + 1) == 0xBB && *(buf + 2) == 0xBF) {
+	if (*buf == 0xEF && *(buf + 1) == 0xBB && *(buf + 2) == 0xBF) {
 		bom = 3;
 	}
 	// UTF-8からUTF-16に変換
 	len = MultiByteToWideChar(CP_UTF8, 0, buf + bom, -1, NULL, 0);
 	if ((wbuf = (WCHAR *)mem_alloc(sizeof(WCHAR) * len)) == NULL) {
-		errcode = GetLastError();
-		mem_free(&buf);
-		SetLastError(errcode);
 		return NULL;
 	}
 	MultiByteToWideChar(CP_UTF8, 0, buf + bom, -1, wbuf, len);
-	mem_free(&buf);
 
 #ifdef UNICODE
 	return wbuf;
 #else
 	// UTF-16からASCIIに変換
 	len = WideCharToMultiByte(CP_ACP, 0, wbuf, -1, NULL, 0, NULL, NULL);
-	if ((buf = (BYTE *)mem_alloc(sizeof(BYTE) * len)) == NULL) {
+	if ((abuf = (BYTE *)mem_alloc(sizeof(BYTE) * len)) == NULL) {
 		errcode = GetLastError();
 		mem_free(&wbuf);
 		SetLastError(errcode);
 		return NULL;
 	}
-	WideCharToMultiByte(CP_ACP, 0, wbuf, -1, buf, len, NULL, NULL);
+	WideCharToMultiByte(CP_ACP, 0, wbuf, -1, abuf, len, NULL, NULL);
 	mem_free(&wbuf);
-	return buf;
+	return abuf;
 #endif
 }
 
@@ -407,6 +432,111 @@ BOOL ReadScriptFiles(SCRIPTINFO *sci, TCHAR *path, TCHAR *name)
 }
 
 /*
+ * DownloadScript - code of a script stored online (NULL when it can not be read)
+ */
+static TCHAR *DownloadScript(TCHAR *cid)
+{
+	HTTP_RESULT *res;
+	TCHAR server[BUF_SIZE];
+	TCHAR *url, *text = NULL;
+	TCHAR *p;
+	DWORD len;
+
+	len = GetEnvironmentVariable(ONLINE_SERVER_ENV, server, BUF_SIZE);
+	if (len == 0 || len >= BUF_SIZE) {
+		lstrcpy(server, ONLINE_DEFAULT_SERVER);
+	}
+	for (len = lstrlen(server); len > 0 && server[len - 1] == TEXT('/'); len--) {
+		server[len - 1] = TEXT('\0');
+	}
+	url = mem_alloc(sizeof(TCHAR) * (lstrlen(server) + lstrlen(IMPORT_URL_PATH) + lstrlen(cid) + 1));
+	if (url == NULL) {
+		return NULL;
+	}
+	p = str_cpy(url, server);
+	p = str_cpy(p, IMPORT_URL_PATH);
+	str_cpy(p, cid);
+	res = http_request(TEXT("GET"), url, NULL);
+	mem_free(&url);
+	if (res == NULL) {
+		return NULL;
+	}
+	if (res->status == 200 && res->body != NULL) {
+		text = Utf8ToText((BYTE *)res->body);
+	}
+	http_free_result(res);
+	return text;
+}
+
+/*
+ * ReadScriptCid - read a script stored online (#import("cid:...")) and run it
+ */
+static BOOL ReadScriptCid(SCRIPTINFO *sci, TCHAR *cid)
+{
+	SCRIPTINFO *tsci = sci->sci_top;
+	SCRIPTINFO *csci, *last;
+	EXECINFO ei;
+	VALUEINFO *rvi = NULL;
+	TCHAR name[IMPORT_CID_SIZE + 4 + 1];
+	TCHAR *buf, *p;
+	int len;
+
+	// the cid (0-9, A-Z, a-z and '-'); the spaces around it are ignored
+	for (; IS_SPACE(*cid); cid++);
+	for (p = cid; IS_CID_CHAR(*p); p++);
+	len = (int)(p - cid);
+	for (; IS_SPACE(*p); p++);
+	if (len == 0 || len >= IMPORT_CID_SIZE || *p != TEXT('\0')) {
+		return FALSE;
+	}
+	// the script is named "cid:<cid>" and has no path
+	lstrcpy(name, IMPORT_CID);
+	str_cpy_n(name + lstrlen(name), cid, len);
+
+	// a script that is already imported (or being imported) is not read again
+	for (csci = last = tsci; csci != NULL; last = csci, csci = csci->next) {
+		if (csci->path == NULL && csci->name != NULL && lstrcmp(csci->name, name) == 0) {
+			break;
+		}
+	}
+	if (csci == NULL) {
+		buf = DownloadScript(name + lstrlen(IMPORT_CID));
+		if (buf == NULL) {
+			return FALSE;
+		}
+		csci = mem_calloc(sizeof(SCRIPTINFO));
+		if (csci == NULL || (csci->name = alloc_copy(name)) == NULL) {
+			mem_free(&csci);
+			mem_free(&buf);
+			ZeroMemory(&ei, sizeof(EXECINFO));
+			ei.sci = sci;
+			Error(&ei, ERR_ALLOC, name, NULL);
+			return FALSE;
+		}
+		csci->buf = buf;
+		csci->sci_top = tsci;
+		csci->strict_val_op = tsci->strict_val_op;
+		csci->strict_val = tsci->strict_val_op;
+		csci->extension = tsci->extension;
+		last->next = csci;
+		//構文解析
+		ZeroMemory(&ei, sizeof(EXECINFO));
+		ei.name = csci->name;
+		ei.sci = csci;
+		csci->tk = ParseSentence(&ei, csci->buf, 0);
+	}
+	if (csci->tk == NULL && IsEmptyScript(csci->buf) == FALSE) {
+		return FALSE;
+	}
+	if (csci->tk != NULL && csci->ei == NULL && ExecScript(csci, NULL, &rvi) == -1) {
+		FreeValueList(rvi);
+		return FALSE;
+	}
+	FreeValueList(rvi);
+	return TRUE;
+}
+
+/*
  * Preprocessor - プリプロセッサ
  */
 TCHAR *Preprocessor(SCRIPTINFO *sci, TCHAR *path, TCHAR *p)
@@ -447,7 +577,20 @@ TCHAR *Preprocessor(SCRIPTINFO *sci, TCHAR *path, TCHAR *p)
 		lstrcpy(str, str + 1);
 	}
 
-	if (str_cmp_ni(t, PREP_IMPORT, lstrlen(PREP_IMPORT)) == 0) {
+	if (str_cmp_ni(t, PREP_IMPORT, lstrlen(PREP_IMPORT)) == 0 &&
+		str_cmp_ni(str, IMPORT_CID, lstrlen(IMPORT_CID)) == 0) {
+		sci->extension = TRUE;
+		// script stored online
+		if (ReadScriptCid(sci, str + lstrlen(IMPORT_CID)) == FALSE) {
+#ifndef IGNORE_IMPORT_ERROR
+			mem_free(&str);
+			ZeroMemory(&ei, sizeof(EXECINFO));
+			ei.sci = sci;
+			Error(&ei, ERR_SCRIPT, t, NULL);
+			return NULL;
+#endif
+		}
+	} else if (str_cmp_ni(t, PREP_IMPORT, lstrlen(PREP_IMPORT)) == 0) {
 		sci->extension = TRUE;
 		TCHAR cdir[MAX_PATH + 1] = { 0 };
 		TCHAR mdir[MAX_PATH + 1] = { 0 };

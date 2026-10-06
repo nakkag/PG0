@@ -147,6 +147,7 @@
   <ItemGroup>
     <ClCompile Include="..\PG0\functbl.c" />
     <ClCompile Include="..\PG0\func_std.c" />
+    <ClCompile Include="..\PG0\http.c" />
     <ClCompile Include="..\PG0\script_exec.c" />
     <ClCompile Include="..\PG0\script_memory.c" />
     <ClCompile Include="..\PG0\script_string.c" />
@@ -157,6 +158,7 @@
     <ClCompile Include="main.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\PG0\http.h" />
     <ClInclude Include="..\PG0\script.h" />
     <ClInclude Include="..\PG0\script_memory.h" />
     <ClInclude Include="..\PG0\script_string.h" />

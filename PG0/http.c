@@ -3,7 +3,7 @@
  *
  * http.c
  *
- * HTTP requests on a worker thread (WinHTTP); the result is posted to a window.
+ * HTTP requests (WinHTTP), either waited for or sent on a worker thread with the result posted to a window.
  */
 
 /* Include Files */
@@ -216,6 +216,28 @@ static unsigned int __stdcall request_thread(void *arg)
 	LeaveCriticalSection(&cs);
 	free_request(req);
 	return 0;
+}
+
+/*
+ * http_request - send a request and wait for the result (NULL when out of memory; free it with http_free_result)
+ */
+HTTP_RESULT *http_request(const TCHAR *method, const TCHAR *url, const char *body)
+{
+	HTTP_REQUEST req;
+	HTTP_RESULT *res;
+
+	if ((res = mem_calloc(sizeof(HTTP_RESULT))) == NULL) {
+		return NULL;
+	}
+	ZeroMemory(&req, sizeof(HTTP_REQUEST));
+	req.method = (TCHAR *)method;
+	req.url = (TCHAR *)url;
+	req.body = (char *)body;
+	send_request(&req, res);
+	if (res->status == 0) {
+		mem_free(&res->body);
+	}
+	return res;
 }
 
 /*

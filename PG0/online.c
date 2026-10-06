@@ -32,7 +32,6 @@
 #pragma comment(lib, "crypt32.lib")
 
 /* Define */
-#define DEFAULT_SERVER					TEXT("https://pg0.jp")
 #define INI_SECTION						TEXT("ONLINE")
 #define APP_NAME						TEXT("PG0")
 #define LIST_COUNT						30
@@ -2207,7 +2206,7 @@ BOOL online_initialize(const HINSTANCE hInstance)
 	int i;
 
 	hInst = hInstance;
-	lstrcpy(server, DEFAULT_SERVER);
+	lstrcpy(server, ONLINE_DEFAULT_SERVER);
 	lstrcpy(list_sort, TEXT("popular"));
 	for (i = 0; i < TAG_COUNT; i++) {
 		LoadString(hInst, tag_names[i], tag_labels[i], LABEL_SIZE - 1);
@@ -2234,13 +2233,15 @@ void online_get_ini(const TCHAR *ini_path)
 	int len;
 
 	// the server can be changed for testing
-	profile_get_string(INI_SECTION, TEXT("server"), DEFAULT_SERVER, server, BUF_SIZE - 1, ini_path);
+	profile_get_string(INI_SECTION, TEXT("server"), ONLINE_DEFAULT_SERVER, server, BUF_SIZE - 1, ini_path);
 	for (len = lstrlen(server); len > 0 && server[len - 1] == TEXT('/'); len--) {
 		server[len - 1] = TEXT('\0');
 	}
 	if (*server == TEXT('\0')) {
-		lstrcpy(server, DEFAULT_SERVER);
+		lstrcpy(server, ONLINE_DEFAULT_SERVER);
 	}
+	// #import("cid:...") reads from the same server (also in pg0gen.exe started from here)
+	SetEnvironmentVariable(ONLINE_SERVER_ENV, server);
 	profile_get_string(INI_SECTION, TEXT("uuid"), TEXT(""), uuid, ONLINE_CID_SIZE - 1, ini_path);
 	ensure_uuid();
 	profile_get_string(INI_SECTION, TEXT("author"), TEXT(""), author, BUF_SIZE - 1, ini_path);
