@@ -62,6 +62,9 @@
 #define IDS_STRING_ONLINE_DIFF_FOLD     67
 #define IDS_STRING_ONLINE_DIFF_COPY     68
 #define IDS_STRING_ONLINE_DIFF_SELECT_ALL 69
+#define IDS_STRING_MSG_FILE_CHANGED     70
+#define IDS_STRING_CONSOLE_RELOAD       71
+#define IDS_STRING_RELOAD_DIFF_TITLE    72
 #define IDI_ICON_MAIN                   102
 #define IDR_MENU                        103
 #define IDR_ACCELERATOR                 106
@@ -104,13 +107,14 @@
 #define ID_MENUITEM_ONLINE_SAVE         40054
 #define ID_MENUITEM_ONLINE_HISTORY      40055
 #define ID_MENUITEM_GEN_EXE             40056
+#define ID_MENUITEM_RELOAD_DIFF         40057
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        111
-#define _APS_NEXT_COMMAND_VALUE         40057
+#define _APS_NEXT_COMMAND_VALUE         40058
 #define _APS_NEXT_CONTROL_VALUE         1001
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

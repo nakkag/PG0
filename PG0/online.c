@@ -156,6 +156,7 @@ typedef struct _OPEN_DATA {
 
 // the dialog of the changes from the previous version
 typedef struct _DIFF_DATA {
+	const TCHAR *title;		// two texts given by the caller are compared (nothing is read online)
 	TCHAR cid[ONLINE_CID_SIZE];
 	double time;
 	double prev_time;
@@ -1341,7 +1342,7 @@ static void diff_init(const HWND hDlg, DIFF_DATA *dd)
 	MONITORINFO mi;
 	int width, height;
 
-	SetWindowText(hDlg, res(IDS_STRING_ONLINE_HISTORY_DIFF));
+	SetWindowText(hDlg, (dd->title != NULL) ? dd->title : res(IDS_STRING_ONLINE_HISTORY_DIFF));
 	dd->hFont = (code_font_set) ? CreateFontIndirect(&code_font) : NULL;
 	dd->hView = create_control(hDlg, DIFF_VIEW_WND_CLASS, TEXT(""), WS_TABSTOP | WS_VSCROLL | WS_HSCROLL | WS_BORDER, 0, IDC_DIFF, dd->hFont);
 	SendMessage(dd->hView, DVM_SETLINENO, code_line_no, 0);
@@ -1358,6 +1359,12 @@ static void diff_init(const HWND hDlg, DIFF_DATA *dd)
 	diff_layout(hDlg, dd);
 	SetFocus(dd->hView);
 
+	if (dd->title != NULL) {
+		// both texts are already here
+		dd->old_ready = dd->new_ready = TRUE;
+		diff_show(hDlg, dd);
+		return;
+	}
 	if (diff_request_code(hDlg, dd, dd->time, &dd->new_id) == FALSE) {
 		diff_fail(hDlg, dd, NULL);
 		return;
@@ -2378,5 +2385,24 @@ BOOL online_save(const HWND hWnd, const TCHAR *code, const TCHAR *default_name, 
 	sd.speed = speed;
 	ensure_uuid();
 	return (dialog_box(hWnd, 0, save_proc, (LPARAM)&sd) == IDOK);
+}
+
+/*
+ * online_show_diff - show the changes between two texts in the dialog of the revision history
+ */
+void online_show_diff(const HWND hWnd, const TCHAR *title, const TCHAR *old_code, const TCHAR *new_code)
+{
+	DIFF_DATA dd;
+
+	ZeroMemory(&dd, sizeof(DIFF_DATA));
+	dd.title = title;
+	dd.prev_skip = -1;
+	dd.old_code = alloc_copy(old_code);
+	dd.new_code = alloc_copy(new_code);
+	if (dd.old_code != NULL && dd.new_code != NULL) {
+		dialog_box(hWnd, WS_THICKFRAME | WS_MAXIMIZEBOX, diff_proc, (LPARAM)&dd);
+	}
+	mem_free(&dd.old_code);
+	mem_free(&dd.new_code);
 }
 /* End of source */

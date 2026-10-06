@@ -34,6 +34,7 @@ const TCHAR *online_get_cid(void);
 BOOL online_open(const HWND hWnd, ONLINE_SCRIPT *script);
 BOOL online_history(const HWND hWnd, ONLINE_SCRIPT *script);
 BOOL online_save(const HWND hWnd, const TCHAR *code, const TCHAR *default_name, const BOOL pg05_mode, const int speed);
+void online_show_diff(const HWND hWnd, const TCHAR *title, const TCHAR *old_code, const TCHAR *new_code);
 
 #endif
 /* End of source */

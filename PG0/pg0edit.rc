@@ -70,6 +70,7 @@ BEGIN
         MENUITEM "上書き保存(&S)\tCtrl+S",           ID_MENUITEM_SAVE
         MENUITEM "名前を付けて保存(&A)...",             ID_MENUITEM_SAVEAS
         MENUITEM "EXEファイルを作成(&E)...",           ID_MENUITEM_GEN_EXE
+        MENUITEM "外部での変更を表示(&D)...",            ID_MENUITEM_RELOAD_DIFF
         MENUITEM SEPARATOR
         MENUITEM "オンラインを開く(&B)...",             ID_MENUITEM_ONLINE_OPEN
         MENUITEM "オンラインに保存(&I)...",             ID_MENUITEM_ONLINE_SAVE
@@ -315,6 +316,9 @@ BEGIN
     IDS_STRING_ONLINE_DIFF_FOLD "%d 行"
     IDS_STRING_ONLINE_DIFF_COPY "コピー(&C)\tCtrl+C"
     IDS_STRING_ONLINE_DIFF_SELECT_ALL "すべて選択(&A)\tCtrl+A"
+    IDS_STRING_MSG_FILE_CHANGED "ほかのプログラムがファイルを変更しました。\n読み込み直しますか？ (編集中の内容は失われます)"
+    IDS_STRING_CONSOLE_RELOAD "ほかのプログラムがファイルを変更したため、読み込み直しました"
+    IDS_STRING_RELOAD_DIFF_TITLE "外部での変更"
 END
 
 #endif    // 日本語 (日本) resources
@@ -341,6 +345,7 @@ BEGIN
         MENUITEM "&Save\tCtrl+S",               ID_MENUITEM_SAVE
         MENUITEM "Save &As...",                 ID_MENUITEM_SAVEAS
         MENUITEM "Create &EXE file...",         ID_MENUITEM_GEN_EXE
+        MENUITEM "Show external &changes...",   ID_MENUITEM_RELOAD_DIFF
         MENUITEM SEPARATOR
         MENUITEM "&Browse online...",           ID_MENUITEM_ONLINE_OPEN
         MENUITEM "Save to onl&ine...",          ID_MENUITEM_ONLINE_SAVE
@@ -489,6 +494,9 @@ BEGIN
     IDS_STRING_ONLINE_DIFF_FOLD "%d lines"
     IDS_STRING_ONLINE_DIFF_COPY "&Copy\tCtrl+C"
     IDS_STRING_ONLINE_DIFF_SELECT_ALL "Select &All\tCtrl+A"
+    IDS_STRING_MSG_FILE_CHANGED "The file has been changed by another program.\nDo you want to reload it? (Your unsaved changes will be lost)"
+    IDS_STRING_CONSOLE_RELOAD "The file was changed by another program and has been reloaded"
+    IDS_STRING_RELOAD_DIFF_TITLE "External changes"
 END
 
 #endif    // 英語 (米国) resources

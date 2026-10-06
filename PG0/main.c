@@ -56,6 +56,10 @@
 // タイマーID
 #define TIMER_SEP						1
 #define TIMER_CONFIRM_TUTORIAL			2
+#define TIMER_FILE_WATCH				3
+
+// 開いているファイルの変更を確認する間隔 (ミリ秒)
+#define FILE_WATCH_INTERVAL				500
 
 /* Global Variables */
 static HINSTANCE hInst;
@@ -86,6 +90,22 @@ typedef struct _OPTION_DATA {
 } OPTION_DATA;
 static OPTION_DATA op;
 
+// ファイルの更新日時とサイズ
+typedef struct _FILE_STAMP {
+	FILETIME time;
+	DWORD size_high;
+	DWORD size_low;
+} FILE_STAMP;
+// 開いているファイルを読み込み、保存した時点の状態 (ほかのプログラムによる変更の検出用)
+static FILE_STAMP file_stamp;
+static BOOL file_stamp_valid;
+// 変更を検出した時点の状態 (書き込みの完了を待つ)
+static FILE_STAMP file_pending;
+static BOOL file_pending_valid;
+static BOOL file_checking;
+// ほかのプログラムによる変更を読み込む前の内容 (変更の表示用)
+static TCHAR *reload_base_text;
+
 static HANDLE hThread;
 static int exec_line = -1;
 typedef struct _EXEC_DATA {
@@ -112,6 +132,11 @@ static HFONT SelectFont(const HWND hWnd);
 static void GetIni(const HWND hWnd, const TCHAR *path);
 static void PutIni(const HWND hWnd, const TCHAR *path);
 static BOOL ReadScriptfile(const HWND hWnd, TCHAR *path);
+static BOOL GetFileStamp(const TCHAR *path, FILE_STAMP *fs);
+static void SetFileStamp(void);
+static int FindChangedLine(const TCHAR *old_text, const TCHAR *new_text);
+static void CheckFileChange(const HWND hWnd);
+static void ShowReloadDiff(const HWND hWnd);
 static BOOL SaveFile(const HWND hWnd, TCHAR *path);
 static BOOL SaveConfirm(const HWND hWnd);
 static void SetTitle(const HWND hWnd);
@@ -744,6 +769,172 @@ static BOOL ReadScriptfile(const HWND hWnd, TCHAR *path)
 }
 
 /*
+ * GetFileStamp - ファイルの更新日時とサイズを取得
+ */
+static BOOL GetFileStamp(const TCHAR *path, FILE_STAMP *fs)
+{
+	WIN32_FILE_ATTRIBUTE_DATA fad;
+
+	if (GetFileAttributesEx(path, GetFileExInfoStandard, &fad) == FALSE) {
+		return FALSE;
+	}
+	fs->time = fad.ftLastWriteTime;
+	fs->size_high = fad.nFileSizeHigh;
+	fs->size_low = fad.nFileSizeLow;
+	return TRUE;
+}
+
+/*
+ * SetFileStamp - 開いているファイルの現在の状態を記録する (読み込み、保存、新規作成の後に呼ぶ)
+ * 以降のほかのプログラムによる変更は、この状態との違いで検出する
+ */
+static void SetFileStamp(void)
+{
+	file_stamp_valid = (*file_path != TEXT('\0')) ? GetFileStamp(file_path, &file_stamp) : FALSE;
+	file_pending_valid = FALSE;
+	// 変更の表示は、利用者が開いた、保存した内容からの変更とする
+	mem_free(&reload_base_text);
+}
+
+/*
+ * FindChangedLine - 最初に内容が違う行 (改行コードの違いは無視する)
+ * 違いが無い場合は -1 を返す
+ */
+static int FindChangedLine(const TCHAR *old_text, const TCHAR *new_text)
+{
+	const TCHAR *p = old_text, *r = new_text;
+	const TCHAR *pe, *re;
+	int line;
+
+	for (line = 0; ; line++) {
+		for (pe = p; *pe != TEXT('\0') && *pe != TEXT('\r') && *pe != TEXT('\n'); pe++);
+		for (re = r; *re != TEXT('\0') && *re != TEXT('\r') && *re != TEXT('\n'); re++);
+		if (pe - p != re - r || str_cmp_n(p, r, (int)(pe - p)) != 0) {
+			return line;
+		}
+		if (*pe == TEXT('\0') || *re == TEXT('\0')) {
+			return (*pe == TEXT('\0') && *re == TEXT('\0')) ? -1 : line;
+		}
+		p = pe + ((*pe == TEXT('\r') && *(pe + 1) == TEXT('\n')) ? 2 : 1);
+		r = re + ((*re == TEXT('\r') && *(re + 1) == TEXT('\n')) ? 2 : 1);
+	}
+}
+
+/*
+ * CheckFileChange - 開いているファイルがほかのプログラム (AI エージェントなど) で変更されていたら読み込み直す
+ * 編集中の内容がある場合は、読み込み直すかを確認する
+ */
+static void CheckFileChange(const HWND hWnd)
+{
+	FILE_STAMP fs;
+	TCHAR *old_text, *new_text;
+	BOOL exec;
+	int len, line, pos, ret;
+
+	if (file_checking == TRUE || file_stamp_valid == FALSE || *file_path == TEXT('\0') ||
+		IsWindowEnabled(hWnd) == FALSE) {
+		return;
+	}
+	// 実行中は終了してから確認する
+	EnterCriticalSection(&cs);
+	exec = ed.exec_flag;
+	LeaveCriticalSection(&cs);
+	if (exec == TRUE) {
+		return;
+	}
+	// 削除された場合は何もしない
+	if (GetFileStamp(file_path, &fs) == FALSE ||
+		(CompareFileTime(&fs.time, &file_stamp.time) == 0 && fs.size_high == file_stamp.size_high && fs.size_low == file_stamp.size_low)) {
+		file_pending_valid = FALSE;
+		return;
+	}
+	// 書き込みの途中で読み込まないように、次の確認まで同じ状態が続いてから読み込む
+	if (file_pending_valid == FALSE ||
+		CompareFileTime(&fs.time, &file_pending.time) != 0 || fs.size_high != file_pending.size_high || fs.size_low != file_pending.size_low) {
+		file_pending = fs;
+		file_pending_valid = TRUE;
+		return;
+	}
+	file_pending_valid = FALSE;
+	if ((new_text = read_file(file_path)) == NULL) {
+		return;
+	}
+	file_stamp = fs;
+
+	// 内容が同じ場合は読み込み直さない
+	len = (int)SendMessage(hEdit, WM_GETTEXTLENGTH, 0, 0);
+	if ((old_text = (TCHAR *)mem_alloc(sizeof(TCHAR) * (len + 1))) == NULL) {
+		mem_free(&new_text);
+		return;
+	}
+	SendMessage(hEdit, WM_GETTEXT, len + 1, (LPARAM)old_text);
+	*(old_text + len) = TEXT('\0');
+	if ((line = FindChangedLine(old_text, new_text)) < 0) {
+		mem_free(&old_text);
+		mem_free(&new_text);
+		return;
+	}
+	if (SendMessage(hEdit, EM_GETMODIFY, 0, 0) == TRUE) {
+		// 確認の表示中は次の確認を行わない
+		file_checking = TRUE;
+		ret = MessageBox(hWnd, GetResMessage(IDS_STRING_MSG_FILE_CHANGED), window_title, MB_ICONEXCLAMATION | MB_YESNO);
+		file_checking = FALSE;
+		if (ret != IDYES) {
+			mem_free(&old_text);
+			mem_free(&new_text);
+			return;
+		}
+	}
+
+	// 読み込み直して、最初に変更された行を表示する
+	SendMessage(hEdit, WM_SETMEM, sizeof(TCHAR) * lstrlen(new_text), (LPARAM)new_text);
+	SendMessage(hEdit, EM_SETMODIFY, (WPARAM)FALSE, 0);
+	if ((pos = (int)SendMessage(hEdit, EM_LINEINDEX, line, 0)) >= 0) {
+		SendMessage(hEdit, EM_SETSEL, pos, pos);
+		SendMessage(hEdit, EM_SCROLLCARET, 0, 0);
+	}
+	mem_free(&new_text);
+	// 続けて変更された場合も、最初の変更の前の内容からの変更を表示できるようにする
+	if (reload_base_text == NULL) {
+		reload_base_text = old_text;
+	} else {
+		mem_free(&old_text);
+	}
+	if (SendMessage(hConsoleView, WM_GETTEXTLENGTH, 0, 0) > 0) {
+		// 実行時と同じ区切り線
+		SendMessage(hConsoleView, WM_VIEW_ADDTEXT, 0, (LPARAM)TEXT("\r\n--"));
+	}
+	OutputTime(hConsoleView);
+	SendMessage(hConsoleView, WM_VIEW_ADDTEXT, 0, (LPARAM)TEXT(" \x03")TEXT("12"));
+	SendMessage(hConsoleView, WM_VIEW_ADDTEXT, 0, (LPARAM)GetResMessage(IDS_STRING_CONSOLE_RELOAD));
+}
+
+/*
+ * ShowReloadDiff - ほかのプログラムによる変更を、変更履歴と同じ差分の画面で表示する
+ */
+static void ShowReloadDiff(const HWND hWnd)
+{
+	TCHAR title[BUF_SIZE];
+	TCHAR *text;
+	int len;
+
+	if (reload_base_text == NULL) {
+		return;
+	}
+	len = (int)SendMessage(hEdit, WM_GETTEXTLENGTH, 0, 0);
+	if ((text = (TCHAR *)mem_alloc(sizeof(TCHAR) * (len + 1))) == NULL) {
+		MessageBox(hWnd, TEXT("Alloc error"), window_title, MB_ICONERROR);
+		return;
+	}
+	SendMessage(hEdit, WM_GETTEXT, len + 1, (LPARAM)text);
+	*(text + len) = TEXT('\0');
+	lstrcpy(title, GetResMessage(IDS_STRING_RELOAD_DIFF_TITLE));
+	online_set_code_view(&lf, (op.line_no != 0));
+	online_show_diff(hWnd, title, reload_base_text, text);
+	mem_free(&text);
+}
+
+/*
  * SaveFile - ファイルの保存
  */
 static BOOL SaveFile(const HWND hWnd, TCHAR *path)
@@ -1223,6 +1414,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		// コマンドライン
 		if (*cmd_line != TEXT('\0') && ReadScriptfile(hWnd, cmd_line) == TRUE) {
 			lstrcpy(file_path, cmd_line);
+			SetFileStamp();
 			online_clear();
 			wsprintf(buf, TEXT("%s - [%s]"), window_title, file_path);
 			SetWindowText(hWnd, buf);
@@ -1231,6 +1423,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		if (op.confirm_tutorial == 1) {
 			SetTimer(hWnd, TIMER_CONFIRM_TUTORIAL, 1, NULL);
 		}
+		SetTimer(hWnd, TIMER_FILE_WATCH, FILE_WATCH_INTERVAL, NULL);
 		break;
 
 	case WM_ACTIVATE:
@@ -1310,6 +1503,9 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				}
 			}
 			break;
+		case TIMER_FILE_WATCH:
+			CheckFileChange(hWnd);
+			break;
 		}
 		break;
 
@@ -1349,6 +1545,8 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			return 0;
 		}
 		PutIni(hWnd, ini_path);
+		KillTimer(hWnd, TIMER_FILE_WATCH);
+		mem_free(&reload_base_text);
 		EnterCriticalSection(&cs);
 		ed.stop_flag = TRUE;
 		LeaveCriticalSection(&cs);
@@ -1383,6 +1581,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		DragQueryFile((HANDLE)wParam, 0, buf, BUF_SIZE - 1);
 		if (ReadScriptfile(hWnd, buf) == TRUE) {
 			lstrcpy(file_path, buf);
+			SetFileStamp();
 			online_clear();
 			wsprintf(buf, TEXT("%s - [%s]"), window_title, file_path);
 			SetWindowText(hWnd, buf);
@@ -1395,6 +1594,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		// the revision history needs a script opened from or saved to the online storage
 		if (LOWORD(lParam) == 0) {
 			EnableMenuItem((HMENU)wParam, ID_MENUITEM_ONLINE_HISTORY, (online_get_cid() != NULL) ? MF_ENABLED : MF_GRAYED);
+			EnableMenuItem((HMENU)wParam, ID_MENUITEM_RELOAD_DIFF, (reload_base_text != NULL) ? MF_ENABLED : MF_GRAYED);
 		}
 		if (LOWORD(lParam) == 1) {
 			DWORD st = 0, en = 0;
@@ -1449,6 +1649,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				break;
 			}
 			*file_path = TEXT('\0');
+			SetFileStamp();
 			SendMessage(hEdit, WM_SETTEXT, 0, (LPARAM)TEXT(""));
 			online_clear();
 			SetWindowText(hWnd, window_title);
@@ -1468,6 +1669,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			*buf = TEXT('\0');
 			if (ReadScriptfile(hWnd, buf) == TRUE) {
 				lstrcpy(file_path, buf);
+				SetFileStamp();
 				online_clear();
 				wsprintf(buf, TEXT("%s - [%s]"), window_title, file_path);
 				SetWindowText(hWnd, buf);
@@ -1476,13 +1678,16 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			break;
 
 		case ID_MENUITEM_SAVE:
-			SaveFile(hWnd, file_path);
+			if (SaveFile(hWnd, file_path) == TRUE) {
+				SetFileStamp();
+			}
 			break;
 
 		case ID_MENUITEM_SAVEAS:
 			*buf = TEXT('\0');
 			if (SaveFile(hWnd, buf) == TRUE) {
 				lstrcpy(file_path, buf);
+				SetFileStamp();
 				wsprintf(buf, TEXT("%s - [%s]"), window_title, file_path);
 				SetWindowText(hWnd, buf);
 			}
@@ -1496,6 +1701,10 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			}
 			LeaveCriticalSection(&cs);
 			GenerateExe(hWnd);
+			break;
+
+		case ID_MENUITEM_RELOAD_DIFF:
+			ShowReloadDiff(hWnd);
 			break;
 
 		case ID_MENUITEM_ONLINE_OPEN:
@@ -1525,6 +1734,7 @@ static LRESULT CALLBACK MainProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				}
 				if (ret == TRUE) {
 					*file_path = TEXT('\0');
+					SetFileStamp();
 					SendMessage(hEdit, WM_SETMEM, sizeof(TCHAR) * lstrlen(script.code), (LPARAM)script.code);
 					mem_free(&script.code);
 					SendMessage(hEdit, EM_SETMODIFY, (WPARAM)FALSE, 0);
