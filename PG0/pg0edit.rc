@@ -191,8 +191,8 @@ IDR_TOOLBAR_96          BITMAP                  "toolbar96.bmp"
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,4,1,0
- PRODUCTVERSION 0,4,1,0
+ FILEVERSION 0,4,2,0
+ PRODUCTVERSION 0,4,2,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -209,12 +209,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "*"
             VALUE "FileDescription", "PG0"
-            VALUE "FileVersion", "0.4.1.0"
+            VALUE "FileVersion", "0.4.2.0"
             VALUE "InternalName", "PG0"
             VALUE "LegalCopyright", "Copyright (C) 1996-2026 by Ohno Tomoaki. All rights reserved."
             VALUE "OriginalFilename", "pg0.exe"
             VALUE "ProductName", "PG0"
-            VALUE "ProductVersion", "0.4.1.0"
+            VALUE "ProductVersion", "0.4.2.0"
         END
     END
     BLOCK "VarFileInfo"
