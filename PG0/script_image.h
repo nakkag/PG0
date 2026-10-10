@@ -19,6 +19,11 @@
 #define IMAGE_RESOURCE_NAME		TEXT("PG0SCRIPT")
 // library whose presence makes the program a window application
 #define IMAGE_LIB_SCREEN		TEXT("pg0_screen.dll")
+// library that needs the cid of the script stored online (lib/net.pg0)
+#define IMAGE_LIB_NET			TEXT("pg0_net.dll")
+// resource with the cid and the server of the script stored online, for IMAGE_LIB_NET
+// (RT_RCDATA, neutral language): "<cid>\n<server>" in UTF-16
+#define IMAGE_ONLINE_RESOURCE_NAME	TEXT("PG0ONLINE")
 
 /* Struct */
 

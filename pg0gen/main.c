@@ -21,6 +21,7 @@
 #include "../PG0/script_memory.h"
 #include "../PG0/script_utility.h"
 #include "../PG0/script_image.h"
+#include "../PG0/http.h"
 
 #pragma comment(lib, "Version.lib")
 
@@ -159,7 +160,7 @@ static const TCHAR *file_name_of(const TCHAR *path)
 static BOOL is_builtin_library(const TCHAR *name)
 {
 	static const TCHAR *builtin[] = {
-		TEXT("pg0_io.dll"), TEXT("pg0_math.dll"), TEXT("pg0_string.dll"), IMAGE_LIB_SCREEN,
+		TEXT("pg0_io.dll"), TEXT("pg0_math.dll"), TEXT("pg0_string.dll"), IMAGE_LIB_SCREEN, IMAGE_LIB_NET,
 	};
 	int i;
 
@@ -172,20 +173,46 @@ static BOOL is_builtin_library(const TCHAR *name)
 }
 
 /*
- * uses_screen - screen ライブラリを使っている (ウィンドウアプリケーションにする)
+ * uses_library - ライブラリを使っている (screen ならウィンドウアプリケーションにする)
  */
-static BOOL uses_screen(SCRIPTINFO *sci)
+static BOOL uses_library(SCRIPTINFO *sci, const TCHAR *name)
 {
 	LIBRARYINFO *lib;
 	TCHAR path[MAX_PATH + 1];
 
 	for (lib = sci->lib; lib != NULL; lib = lib->next) {
 		if (GetModuleFileName(lib->hModul, path, MAX_PATH) != 0 &&
-			str_cmp_i((TCHAR *)file_name_of(path), IMAGE_LIB_SCREEN) == 0) {
+			str_cmp_i((TCHAR *)file_name_of(path), (TCHAR *)name) == 0) {
 			return TRUE;
 		}
 	}
 	return FALSE;
+}
+
+/*
+ * online_text - 通信ライブラリ用に埋め込む cid とサーバー ("<cid>\n<server>"、cid が無い場合は NULL)
+ * pg0.exe はオンラインのスクリプトから作成するときに cid を環境変数で渡す
+ */
+static TCHAR *online_text(void)
+{
+	TCHAR cid[BUF_SIZE];
+	TCHAR server[BUF_SIZE];
+	TCHAR *ret;
+	DWORD len;
+
+	len = GetEnvironmentVariable(ONLINE_CID_ENV, cid, BUF_SIZE);
+	if (len == 0 || len >= BUF_SIZE) {
+		return NULL;
+	}
+	len = GetEnvironmentVariable(ONLINE_SERVER_ENV, server, BUF_SIZE);
+	if (len == 0 || len >= BUF_SIZE) {
+		lstrcpy(server, ONLINE_DEFAULT_SERVER);
+	}
+	ret = mem_alloc(sizeof(TCHAR) * (lstrlen(cid) + lstrlen(server) + 2));
+	if (ret != NULL) {
+		wsprintf(ret, TEXT("%s\n%s"), cid, server);
+	}
+	return ret;
 }
 
 /*
@@ -256,9 +283,9 @@ static BOOL copy_libraries(SCRIPTINFO *sci, const TCHAR *out)
 }
 
 /*
- * generate - テンプレートをコピーして解析木を埋め込む
+ * generate - テンプレートをコピーして解析木 (と通信ライブラリ用の cid とサーバー) を埋め込む
  */
-static BOOL generate(SCRIPTINFO *sci, const TCHAR *tmpl, const TCHAR *out)
+static BOOL generate(SCRIPTINFO *sci, const TCHAR *tmpl, const TCHAR *out, const TCHAR *online)
 {
 	HANDLE hUpdate;
 	BYTE *image;
@@ -277,6 +304,8 @@ static BOOL generate(SCRIPTINFO *sci, const TCHAR *tmpl, const TCHAR *out)
 	hUpdate = BeginUpdateResource(out, FALSE);
 	if (hUpdate == NULL ||
 		UpdateResource(hUpdate, RT_RCDATA, IMAGE_RESOURCE_NAME, MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL), image, size) == FALSE ||
+		(online != NULL && UpdateResource(hUpdate, RT_RCDATA, IMAGE_ONLINE_RESOURCE_NAME, MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL),
+			(LPVOID)online, sizeof(TCHAR) * lstrlen(online)) == FALSE) ||
 		EndUpdateResource(hUpdate, FALSE) == FALSE) {
 		_tprintf(msg_text(TEXT("解析木の埋め込みに失敗しました: %s\n"), TEXT("Failed to embed the parse tree: %s\n")), out);
 		DeleteFile(out);
@@ -296,6 +325,7 @@ int _tmain(int argc, TCHAR **argv)
 	TCHAR fname[MAX_PATH];
 	TCHAR tmpl[MAX_PATH + 1];
 	TCHAR out[MAX_PATH + 1];
+	TCHAR *online = NULL;
 	TCHAR *c;
 	int i = 1;
 	int ret = -1;
@@ -428,7 +458,7 @@ int _tmain(int argc, TCHAR **argv)
 
 	//テンプレート (pg0gen.exe と同じフォルダ)
 	if (window < 0) {
-		window = uses_screen(ScriptInfo);
+		window = uses_library(ScriptInfo, IMAGE_LIB_SCREEN);
 	}
 	get_module_dir(tmpl);
 	if (lstrlen(tmpl) + lstrlen(TEMPLATE_WINDOW) >= MAX_PATH) {
@@ -444,13 +474,23 @@ int _tmain(int argc, TCHAR **argv)
 		return -1;
 	}
 
+	//通信ライブラリはオンラインのスクリプトの cid で同じスクリプト同士をつなぐ
+	if (uses_library(ScriptInfo, IMAGE_LIB_NET) == TRUE) {
+		online = online_text();
+	}
+
 	//生成
-	if (generate(ScriptInfo, tmpl, out) == TRUE && copy_libraries(ScriptInfo, out) == TRUE) {
+	if (generate(ScriptInfo, tmpl, out, online) == TRUE && copy_libraries(ScriptInfo, out) == TRUE) {
 		_tprintf(msg_text(TEXT("%s を作成しました。(%s)\n"), TEXT("%s created. (%s)\n")), out,
 			(window == 1) ? msg_text(TEXT("ウィンドウアプリケーション"), TEXT("window application")) :
 			msg_text(TEXT("コンソールアプリケーション"), TEXT("console application")));
+		if (uses_library(ScriptInfo, IMAGE_LIB_NET) == TRUE && online == NULL) {
+			_tprintf(msg_text(TEXT("オンラインに保存したスクリプトではないため、通信ライブラリ (net.pg0) はつながりません。(netJoin() は 0 を返します)\n"),
+				TEXT("The script is not stored online, so the network library (net.pg0) does not connect. (netJoin() returns 0)\n")));
+		}
 		ret = 0;
 	}
+	mem_free(&online);
 	FreeScriptInfo(ScriptInfo);
 	EndScript();
 #ifdef _DEBUG

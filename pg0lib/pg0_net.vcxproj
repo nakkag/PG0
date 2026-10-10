@@ -20,32 +20,32 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
-    <ProjectGuid>{5B2D7E10-3C4A-4F8B-9A1E-6D0F2C3B4A51}</ProjectGuid>
-    <RootNamespace>pg0app</RootNamespace>
+    <ProjectGuid>{2702C6A2-673F-4D8E-BD1E-FCEE5E9262A0}</ProjectGuid>
+    <RootNamespace>pg0_net</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -69,9 +69,15 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)'=='Win32'">
+    <OutDir>$(SolutionDir)$(Configuration)\lib\</OutDir>
     <IntDir>$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
-    <TargetName>pg0app</TargetName>
+    <TargetName>pg0_net</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)'=='x64'">
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\lib\</OutDir>
+    <IntDir>$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <TargetName>pg0_net</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -79,14 +85,16 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <PreprocessorDefinitions>PG0_STATIC_LIB;JSON_MAX_DEPTH=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PG0_LIB;JSON_MAX_DEPTH=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
+      <ModuleDefinitionFile>$(ProjectDir)net.def</ModuleDefinitionFile>
     </Link>
-    <Manifest>
-      <AdditionalManifestFiles>$(ProjectDir)\manifest.xml %(AdditionalManifestFiles)</AdditionalManifestFiles>
-    </Manifest>
+    <PostBuildEvent>
+      <Command>copy /Y "$(ProjectDir)lib\net.pg0" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -94,14 +102,15 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <PreprocessorDefinitions>PG0_STATIC_LIB;JSON_MAX_DEPTH=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PG0_LIB;JSON_MAX_DEPTH=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <ModuleDefinitionFile>$(ProjectDir)net.def</ModuleDefinitionFile>
     </Link>
-    <Manifest>
-      <AdditionalManifestFiles>$(ProjectDir)\manifest.xml %(AdditionalManifestFiles)</AdditionalManifestFiles>
-    </Manifest>
+    <PostBuildEvent>
+      <Command>copy /Y "$(ProjectDir)lib\net.pg0" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -111,18 +120,18 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
+      <PreprocessorDefinitions>PG0_LIB;JSON_MAX_DEPTH=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <PreprocessorDefinitions>PG0_STATIC_LIB;JSON_MAX_DEPTH=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
+      <ModuleDefinitionFile>$(ProjectDir)net.def</ModuleDefinitionFile>
     </Link>
-    <Manifest>
-      <AdditionalManifestFiles>$(ProjectDir)\manifest.xml %(AdditionalManifestFiles)</AdditionalManifestFiles>
-    </Manifest>
+    <PostBuildEvent>
+      <Command>copy /Y "$(ProjectDir)lib\net.pg0" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -132,63 +141,38 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
+      <PreprocessorDefinitions>PG0_LIB;JSON_MAX_DEPTH=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <PreprocessorDefinitions>PG0_STATIC_LIB;JSON_MAX_DEPTH=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <SubSystem>Console</SubSystem>
+      <ModuleDefinitionFile>$(ProjectDir)net.def</ModuleDefinitionFile>
     </Link>
-    <Manifest>
-      <AdditionalManifestFiles>$(ProjectDir)\manifest.xml %(AdditionalManifestFiles)</AdditionalManifestFiles>
-    </Manifest>
+    <PostBuildEvent>
+      <Command>copy /Y "$(ProjectDir)lib\net.pg0" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\PG0\functbl.c" />
-    <ClCompile Include="..\PG0\func_std.c" />
-    <ClCompile Include="..\PG0\script_exec.c" />
+    <ClCompile Include="..\PG0\json.c" />
     <ClCompile Include="..\PG0\script_memory.c" />
     <ClCompile Include="..\PG0\script_string.c" />
     <ClCompile Include="..\PG0\script_utility.c" />
-    <ClCompile Include="..\PG0\script_image.c" />
-    <ClCompile Include="..\PG0\json.c" />
-    <ClCompile Include="..\pg0lib\lib_common.c" />
-    <ClCompile Include="..\pg0lib\lib_static.c" />
-    <ClCompile Include="..\pg0lib\io.c" />
-    <ClCompile Include="..\pg0lib\math.c" />
-    <ClCompile Include="..\pg0lib\string.c" />
-    <ClCompile Include="..\pg0lib\screen.c" />
-    <ClCompile Include="..\pg0lib\screen_d2d.c" />
-    <ClCompile Include="..\pg0lib\screen_draw.c" />
-    <ClCompile Include="..\pg0lib\screen_sound.c" />
-    <ClCompile Include="..\pg0lib\screen_window.c" />
-    <ClCompile Include="..\pg0lib\net.c" />
-    <ClCompile Include="main.c" />
+    <ClCompile Include="lib_common.c" />
+    <ClCompile Include="net.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\PG0\script.h" />
+    <None Include="net.def" />
+    <None Include="lib\net.pg0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\PG0\http.h" />
+    <ClInclude Include="..\PG0\json.h" />
     <ClInclude Include="..\PG0\script_memory.h" />
     <ClInclude Include="..\PG0\script_string.h" />
     <ClInclude Include="..\PG0\script_struct.h" />
     <ClInclude Include="..\PG0\script_utility.h" />
-    <ClInclude Include="..\PG0\script_image.h" />
-    <ClInclude Include="..\PG0\http.h" />
-    <ClInclude Include="..\PG0\json.h" />
-    <ClInclude Include="..\pg0lib\lib_common.h" />
-    <ClInclude Include="..\pg0lib\lib_static.h" />
-    <ClInclude Include="..\pg0lib\screen.h" />
-    <ClInclude Include="..\pg0lib\d2d1_c.h" />
-    <ClInclude Include="..\pg0lib\gdiplus_flat.h" />
-    <ClInclude Include="..\pg0lib\io_funcs.h" />
-    <ClInclude Include="..\pg0lib\math_funcs.h" />
-    <ClInclude Include="..\pg0lib\string_funcs.h" />
-    <ClInclude Include="..\pg0lib\screen_funcs.h" />
-    <ClInclude Include="..\pg0lib\net_funcs.h" />
-    <ClInclude Include="resource.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="pg0app.rc" />
+    <ClInclude Include="lib_common.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

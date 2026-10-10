@@ -31,6 +31,7 @@ void online_set_code_view(const LOGFONT *font, const BOOL line_no);
 void online_clear(void);
 const TCHAR *online_get_name(void);
 const TCHAR *online_get_cid(void);
+void online_export_cid(void);
 BOOL online_open(const HWND hWnd, ONLINE_SCRIPT *script);
 BOOL online_history(const HWND hWnd, ONLINE_SCRIPT *script);
 BOOL online_save(const HWND hWnd, const TCHAR *code, const TCHAR *default_name, const BOOL pg05_mode, const int speed);

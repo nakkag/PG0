@@ -11,6 +11,7 @@ Code written for the web version runs as is.
 * Mathematical API (math.pg0)
 * String API (string.pg0)
 * Input/Output API (io.pg0)
+* Network API (net.pg0)
 
 # Files
 The libraries are placed in the lib folder in the same directory as pg0.exe (pg0cmd.exe).
@@ -24,6 +25,8 @@ The libraries are placed in the lib folder in the same directory as pg0.exe (pg0
 	lib\pg0_string.dll
 	lib\io.pg0         Input/Output API
 	lib\pg0_io.dll
+	lib\net.pg0        Network API
+	lib\pg0_net.dll
 Building the solution (PG0.sln) places them in the lib folder of the output directory.
 The source code is in the pg0lib folder. Sample scripts are in pg0lib\samples.
 (When installed with the installer, the sample scripts are in the sample\lib folder of the installation folder.)
@@ -34,6 +37,7 @@ The libraries can be used with the same import statements as the web version.
 	#import("lib/math.pg0")
 	#import("lib/string.pg0")
 	#import("lib/io.pg0")
+	#import("lib/net.pg0")
 #import searches in the following order.
 	1) Relative path from the directory of the script file
 	2) Relative path from the current directory
@@ -64,6 +68,12 @@ If the extension is .dll, the file is loaded as a library without searching for 
 	Scripts with the same file name share the storage area even if they are in different folders.
 	Scripts that have not been saved to a file share a common storage area.
 * When running with pg0cmd.exe, pressing the close button of the screen window terminates pg0cmd.exe.
+* The Network API (net.pg0) works when pg0.exe runs a program stored online
+	(opened with "Browse online..." or saved with "Save to online...").
+	It connects to the server of the settings (pg0.jp) with the cid of that program,
+	so people who have the same program open in the web version can join the same room.
+	A program built from a program stored online works as well (see "Building a program").
+	A program opened from a file and pg0cmd.exe have no cid: netJoin() returns 0 there.
 
 # Running from the command line (pg0cmd.exe)
 Runs a script from the command line.
@@ -155,8 +165,13 @@ script and does not parse the script when it runs.
 The templates are placed in the same directory as pg0gen.exe.
 Without /w or /c, the program is a window application when the screen library (lib/screen.pg0)
 is used, and a console application otherwise.
-The four libraries screen, math, string and io are built into the program, so the program
+The five libraries screen, math, string, io and net are built into the program, so the program
 needs neither the lib folder nor the DLLs.
+For a script that uses the Network API (net.pg0), a program built in pg0.exe from a program
+stored online (opened with "Browse online..." or saved with "Save to online...") carries the cid
+and the server of that program. Whoever runs it joins the same rooms as the people playing the same
+program as a built program, in pg0.exe or in the web version. Otherwise netJoin() returns 0.
+(On the command line, give the cid and the server in the environment variables PG0_CID and PG0_SERVER.)
 Other libraries (DLLs loaded with #library) are loaded from the directory of the program
 (or its lib folder); pg0gen.exe copies the required DLLs to the output directory.
 Imported scripts (#import) are included in the program as well.
@@ -806,6 +821,152 @@ set_clipboard(text)
 		text - Text to be set on the clipboard.
 	* Return Value
 		Returns 1 on success, 0 on failure.
+
+# Network API (net.pg0)
+Can be used with the following import statement.
+	#import("lib/net.pg0")
+
+People who have the same program open (the same program saved online, with the same cid) can send values to each other.
+Use it for games played online against each other.
+* It works only in a program saved online (saving gives the program a cid).
+	In pg0.exe it works for a program opened with "Browse online..." or saved with "Save to online...",
+	and in a program built from it.
+* Only copies of the program with the same cid are connected; never other programs.
+	People who have the same program open in the web version can join the same room.
+* The server stores nothing: a value sent only reaches the other people in the room.
+* When the program ends (including the stop button), it leaves the room.
+* The size and number of values sent are limited (by default up to 16 KB each and 60 a second).
+	What goes over is not sent, and a notice is shown in the console pane.
+Example: two people send each other a position
+	#import("lib/net.pg0")
+	#import("lib/io.pg0")
+	me = netJoin()
+	if (me == 0) {
+		println("Could not connect")
+		exit
+	}
+	while (netCount() < 2) {
+		wait(100)
+	}
+	x = 100 * me
+	netSend({"x": x})
+	while (netAvailable() == 0) {
+		wait(100)
+	}
+	m = netReceive()
+	println("x of player " + m["from"] + " is " + m["data"]["x"])
+
+netJoin(room, players)
+	* Description
+		Enters a room, and waits until it is in the room or has failed (10 seconds at most).
+		It is connected with the people of the same cid in the room of the same name.
+		Without a room name (or with ""), it enters a room that is not full yet by itself.
+		Once such an automatic room has been full, nobody else enters it.
+		With a room name agreed beforehand, friends can enter the same room.
+		A full room, or a room closed with netClose(), cannot be entered.
+		When it is already in a room, it leaves that room first.
+	* Parameters
+		room - Room name (optional, up to 32 characters)
+		players - Number of players of the room (2 when omitted, 2 to 8). The value of the person who made the room is used.
+	* Return Value
+		Your player number (1, 2, ...), or 0 when it could not enter.
+		Numbers are given in the order of entering: the smallest number that is free.
+		When it could not enter, the reason is shown in the console pane.
+
+netLeave()
+	* Description
+		Leaves the room.
+	* Parameters
+		None
+	* Return Value
+		0
+
+netClose()
+	* Description
+		Closes the room: nobody else can enter it any more.
+		Call it when the game starts, and nobody comes in part-way through.
+		Free seats, and seats left later, are not offered again.
+		Anybody in the room may call it, and it cannot be undone.
+	* Parameters
+		None
+	* Return Value
+		1 when the room was closed, 0 when not in a room.
+	Example: a game for 2 to 4 people that player 1 starts once 2 or more have come
+		me = netJoin("", 4)
+		if (me == 1) {
+			while (netCount() < 2) {
+				wait(100)
+			}
+			netClose()
+			netSend("start")
+		}
+
+netId()
+	* Description
+		Gets your player number.
+	* Parameters
+		None
+	* Return Value
+		Your player number. 0 when not in a room (also after the connection was lost).
+
+netRoom()
+	* Description
+		Gets the name of the room. A room entered automatically has a name starting with "auto-".
+	* Parameters
+		None
+	* Return Value
+		The room name. "" when not in a room.
+
+netCount()
+	* Description
+		Gets the number of people in the room, you included.
+	* Parameters
+		None
+	* Return Value
+		The number of people. 0 when not in a room (also after the connection was lost).
+
+netPlayers()
+	* Description
+		Gets the player numbers of the people in the room.
+	* Parameters
+		None
+	* Return Value
+		Array of player numbers, smallest first. Example: {1, 2}
+
+netSend(value, to)
+	* Description
+		Sends a value: a number, a string or an array. It does not come back to you.
+	* Parameters
+		value - The value to send
+		to - Player number to send it to (everybody else in the room when omitted)
+	* Return Value
+		1 when it was sent, 0 when it could not be (for example when not in a room).
+
+netAvailable()
+	* Description
+		Gets the number of values received and not taken with netReceive() yet.
+	* Parameters
+		None
+	* Return Value
+		The number of values (1000 at most; past that the oldest are dropped).
+
+netReceive()
+	* Description
+		Takes the oldest received value.
+	* Parameters
+		None
+	* Return Value
+		Array {"from": player number of the sender, "data": the value sent}.
+		0 when nothing has been received.
+
+netLast(player)
+	* Description
+		Gets the last value received from the given player, whether or not it was taken with netReceive().
+		In a game where everybody keeps sending their position, this alone tells what the others are doing.
+	* Parameters
+		player - Player number
+	* Return Value
+		The last value received. 0 when nothing has come from that player yet, or when they left the room.
 
 --
 Copyright (C) 1996-2026 by Ohno Tomoaki. All rights reserved.

@@ -2311,6 +2311,15 @@ const TCHAR *online_get_cid(void)
 }
 
 /*
+ * online_export_cid - pass the cid of the online script in the editor to the script about to run
+ *                     (lib/net.pg0 meets the copies of the same script with it; removed when there is none)
+ */
+void online_export_cid(void)
+{
+	SetEnvironmentVariable(ONLINE_CID_ENV, online_get_cid());
+}
+
+/*
  * finish_open - the script read by a list dialog becomes the one in the editor (only when the dialog ended with it)
  */
 static BOOL finish_open(OPEN_DATA *od, const INT_PTR ret)

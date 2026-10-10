@@ -1,0 +1,13 @@
+EXPORTS
+	_lib_unload
+	_lib_func_netjoin
+	_lib_func_netclose
+	_lib_func_netleave
+	_lib_func_netid
+	_lib_func_netroom
+	_lib_func_netcount
+	_lib_func_netplayers
+	_lib_func_netsend
+	_lib_func_netavailable
+	_lib_func_netreceive
+	_lib_func_netlast

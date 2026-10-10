@@ -10,7 +10,7 @@
  * pg0gen.exe が解析木をリソースに埋め込んで実行ファイルにするテンプレート
  *   pg0app.exe  : コンソールアプリケーション
  *   pg0appw.exe : ウィンドウアプリケーション (PG0_APP_WINDOW、screen ライブラリ用)
- * io / math / string / screen ライブラリは組み込み (lib_static.c)、
+ * io / math / string / screen / net ライブラリは組み込み (lib_static.c)、
  * それ以外のライブラリは実行ファイルと同じフォルダの DLL を読み込む
  */
 
@@ -25,6 +25,7 @@
 #include "../PG0/script_memory.h"
 #include "../PG0/script_utility.h"
 #include "../PG0/script_image.h"
+#include "../PG0/http.h"
 #include "../pg0lib/lib_static.h"
 
 /* Define */
@@ -392,6 +393,36 @@ static void print_result(VALUEINFO *rvi)
 }
 
 /*
+ * set_online - 通信ライブラリ用に埋め込まれた cid とサーバーを設定する
+ * (オンラインのスクリプトから作成した場合、同じスクリプトの pg0.exe や Web版とつながる)
+ */
+static void set_online(void)
+{
+	HRSRC hRes;
+	HGLOBAL hGlobal;
+	const TCHAR *data;
+	TCHAR *buf, *p;
+	DWORD size;
+
+	hRes = FindResourceEx(NULL, RT_RCDATA, IMAGE_ONLINE_RESOURCE_NAME, MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL));
+	if (hRes == NULL || (hGlobal = LoadResource(NULL, hRes)) == NULL ||
+		(data = LockResource(hGlobal)) == NULL || (size = SizeofResource(NULL, hRes)) == 0) {
+		return;
+	}
+	// "<cid>\n<server>"
+	if ((buf = alloc_copy_n((TCHAR *)data, size / sizeof(TCHAR))) == NULL) {
+		return;
+	}
+	for (p = buf; *p != TEXT('\0') && *p != TEXT('\n'); p++);
+	if (*p == TEXT('\n')) {
+		*(p++) = TEXT('\0');
+		SetEnvironmentVariable(ONLINE_CID_ENV, buf);
+		SetEnvironmentVariable(ONLINE_SERVER_ENV, p);
+	}
+	mem_free(&buf);
+}
+
+/*
  * run - リソースの解析木を実行する
  */
 static int run(int argc, TCHAR **argv)
@@ -430,6 +461,7 @@ static int run(int argc, TCHAR **argv)
 	}
 
 	//ライブラリ、インポートしたスクリプト、本体の順に実行
+	set_online();
 	if (load_libraries(sci, image, size) == TRUE && exec_imports(sci) == TRUE) {
 		ret = ExecScript(sci, make_args(argc, argv, 1), &rvi);
 		if (ret != -1) {

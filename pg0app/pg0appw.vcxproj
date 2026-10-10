@@ -79,7 +79,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <PreprocessorDefinitions>PG0_STATIC_LIB;PG0_APP_WINDOW;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PG0_STATIC_LIB;PG0_APP_WINDOW;JSON_MAX_DEPTH=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -94,7 +94,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <PreprocessorDefinitions>PG0_STATIC_LIB;PG0_APP_WINDOW;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PG0_STATIC_LIB;PG0_APP_WINDOW;JSON_MAX_DEPTH=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -113,7 +113,7 @@
       <ConformanceMode>true</ConformanceMode>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <PreprocessorDefinitions>PG0_STATIC_LIB;PG0_APP_WINDOW;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PG0_STATIC_LIB;PG0_APP_WINDOW;JSON_MAX_DEPTH=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -133,7 +133,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <PreprocessorDefinitions>PG0_STATIC_LIB;PG0_APP_WINDOW;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PG0_STATIC_LIB;PG0_APP_WINDOW;JSON_MAX_DEPTH=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -152,6 +152,7 @@
     <ClCompile Include="..\PG0\script_string.c" />
     <ClCompile Include="..\PG0\script_utility.c" />
     <ClCompile Include="..\PG0\script_image.c" />
+    <ClCompile Include="..\PG0\json.c" />
     <ClCompile Include="..\pg0lib\lib_common.c" />
     <ClCompile Include="..\pg0lib\lib_static.c" />
     <ClCompile Include="..\pg0lib\io.c" />
@@ -162,6 +163,7 @@
     <ClCompile Include="..\pg0lib\screen_draw.c" />
     <ClCompile Include="..\pg0lib\screen_sound.c" />
     <ClCompile Include="..\pg0lib\screen_window.c" />
+    <ClCompile Include="..\pg0lib\net.c" />
     <ClCompile Include="main.c" />
   </ItemGroup>
   <ItemGroup>
@@ -171,6 +173,8 @@
     <ClInclude Include="..\PG0\script_struct.h" />
     <ClInclude Include="..\PG0\script_utility.h" />
     <ClInclude Include="..\PG0\script_image.h" />
+    <ClInclude Include="..\PG0\http.h" />
+    <ClInclude Include="..\PG0\json.h" />
     <ClInclude Include="..\pg0lib\lib_common.h" />
     <ClInclude Include="..\pg0lib\lib_static.h" />
     <ClInclude Include="..\pg0lib\screen.h" />
@@ -180,6 +184,7 @@
     <ClInclude Include="..\pg0lib\math_funcs.h" />
     <ClInclude Include="..\pg0lib\string_funcs.h" />
     <ClInclude Include="..\pg0lib\screen_funcs.h" />
+    <ClInclude Include="..\pg0lib\net_funcs.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>

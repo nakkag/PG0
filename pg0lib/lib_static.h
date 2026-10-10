@@ -3,7 +3,7 @@
  *
  * lib_static.h
  *
- * The io, math, string and screen libraries built into a program (pg0app)
+ * The io, math, string, screen and net libraries built into a program (pg0app)
  * instead of being loaded as DLLs. Compile the library sources with PG0_STATIC_LIB.
  */
 

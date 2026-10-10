@@ -86,6 +86,7 @@ prepare.ps1 が以下のファイルを収集して ZIP にまとめ、インス
   lib\pg0_math.dll     Release\lib フォルダから収集 (数値処理API)
   lib\pg0_string.dll   Release\lib フォルダから収集 (文字列API)
   lib\pg0_screen.dll   Release\lib フォルダから収集 (画面描画API)
+  lib\pg0_net.dll      Release\lib フォルダから収集 (通信API)
   lib\*.pg0            pg0lib\lib から収集 (ライブラリの読み込み用スクリプト)
   pg0.txt              PG0 から収集 (PG0 の言語仕様)
   pg0.5.txt            PG0 から収集 (PG0.5 の言語仕様)

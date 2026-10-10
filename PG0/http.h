@@ -19,6 +19,8 @@
 // (pg0.exe sets it from its settings, so that pg0gen.exe started from it uses the same server)
 #define ONLINE_DEFAULT_SERVER			TEXT("https://pg0.jp")
 #define ONLINE_SERVER_ENV				TEXT("PG0_SERVER")
+// cid of the online script in the editor while it runs (lib/net.pg0 connects only with it)
+#define ONLINE_CID_ENV					TEXT("PG0_CID")
 
 /* Struct */
 // result of a request, posted to the window as LPARAM (free it with http_free_result)

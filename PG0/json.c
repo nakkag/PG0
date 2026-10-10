@@ -19,7 +19,10 @@
 #include "json.h"
 
 /* Define */
+// a project may need deeper documents (pg0_net.dll: arrays nested 32 deep take about 100 levels)
+#ifndef JSON_MAX_DEPTH
 #define JSON_MAX_DEPTH					64
+#endif
 #define WRITER_RESERVE					1024
 
 /* Global Variables */

@@ -3,7 +3,7 @@
  *
  * lib_static.c
  *
- * The io, math, string and screen libraries built into a program (pg0app).
+ * The io, math, string, screen and net libraries built into a program (pg0app).
  * The function tables are generated from *_funcs.h and registered with AddFuncTable,
  * so the interpreter finds "_lib_func_..." the same way as the standard functions.
  */
@@ -32,6 +32,7 @@ typedef struct _BUILTINLIB {
 #include "math_funcs.h"
 #include "string_funcs.h"
 #include "screen_funcs.h"
+#include "net_funcs.h"
 #undef LIB_FUNC
 
 // function tables
@@ -48,6 +49,9 @@ static const LIBFUNCTBL string_tbl[] = {
 static const LIBFUNCTBL screen_tbl[] = {
 #include "screen_funcs.h"
 };
+static const LIBFUNCTBL net_tbl[] = {
+#include "net_funcs.h"
+};
 #undef LIB_FUNC
 
 #define TABLE(dll, tbl)			{ TEXT(dll), tbl, sizeof(tbl) / sizeof(LIBFUNCTBL) }
@@ -56,6 +60,7 @@ static const BUILTINLIB builtin[] = {
 	TABLE("pg0_math.dll", math_tbl),
 	TABLE("pg0_string.dll", string_tbl),
 	TABLE("pg0_screen.dll", screen_tbl),
+	TABLE("pg0_net.dll", net_tbl),
 };
 #undef TABLE
 
@@ -63,6 +68,8 @@ static const BUILTINLIB builtin[] = {
 // screen.c (PG0_STATIC_LIB)
 void screen_lib_init(void);
 void screen_lib_term(void);
+// net.c (PG0_STATIC_LIB)
+void net_lib_term(void);
 
 /*
  * lib_static_init - register the built-in libraries with the interpreter
@@ -85,6 +92,7 @@ BOOL lib_static_init(void)
  */
 void lib_static_term(void)
 {
+	net_lib_term();
 	screen_lib_term();
 }
 
