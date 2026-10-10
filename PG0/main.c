@@ -502,7 +502,7 @@ static unsigned int CALLBACK StartScript(const HWND hWnd)
 		case TYPE_FLOAT:
 		{
 			TCHAR tmp[FLOAT_LENGTH];
-			_stprintf_s(tmp, FLOAT_LENGTH, TEXT("%.16f"), rvi->v->u.fValue);
+			float_to_string(tmp, rvi->v->u.fValue);
 			SendMessage(hConsoleView, WM_VIEW_ADDTEXT, 0, (LPARAM)tmp);
 		}
 			break;

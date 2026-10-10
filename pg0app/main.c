@@ -383,7 +383,11 @@ static void print_result(VALUEINFO *rvi)
 		_tprintf(TEXT("%s"), rvi->v->u.sValue);
 		break;
 	case TYPE_FLOAT:
-		_tprintf(TEXT("%.16f"), rvi->v->u.fValue);
+	{
+		TCHAR tmp[FLOAT_LENGTH];
+		float_to_string(tmp, rvi->v->u.fValue);
+		_tprintf(TEXT("%s"), tmp);
+	}
 		break;
 	default:
 		_tprintf(TEXT("%d"), rvi->v->u.iValue);

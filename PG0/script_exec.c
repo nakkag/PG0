@@ -734,7 +734,8 @@ static VALUEINFO *UnaryCalcValueFloat(EXECINFO *ei, VALUEINFO *vi, int c)
 		break;
 
 	case SYM_BITNOT:
-		f = ~ToInt32(f);
+		// Webî≈Ç∆ìØÇ∂Ç≠ parseInt(êîíl) ÇîΩì]Ç∑ÇÈ
+		f = ~ToInt32(js_parse_int(f));
 		break;
 
 	case SYM_INC:

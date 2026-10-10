@@ -315,13 +315,13 @@ int _ArrayToStringSize(VALUEINFO *vi, BOOL hex_mode)
 	int ret = 0;
 	for(; vi != NULL; vi = vi->next){
 		if (first != TRUE) {
-			ret++;
+			ret += 2;
 		}
 		first = FALSE;
 		if (vi->org_name != NULL) {
-			ret += lstrlen(vi->org_name) + 3;
+			ret += lstrlen(vi->org_name) + 4;
 		} else if (vi->name != NULL) {
-			ret += lstrlen(vi->name) + 3;
+			ret += lstrlen(vi->name) + 4;
 		}
 		if (vi->v->type == TYPE_ARRAY) {
 			ret += _ArrayToStringSize(vi->v->u.array, hex_mode) + 2;
@@ -331,7 +331,7 @@ int _ArrayToStringSize(VALUEINFO *vi, BOOL hex_mode)
 			mem_free(&tmp);
 		} else if (vi->v->type == TYPE_FLOAT) {
 			TCHAR tmp[FLOAT_LENGTH];
-			swprintf_s(tmp, FLOAT_LENGTH, TEXT("%.16f"), vi->v->u.fValue);
+			float_to_string(tmp, vi->v->u.fValue);
 			ret += lstrlen(tmp);
 		} else {
 			if (hex_mode == FALSE) {
@@ -358,18 +358,18 @@ static void _ArrayToString(VALUEINFO *vi, TCHAR *buf, BOOL hex_mode)
 	BOOL first = TRUE;
 	for(; vi != NULL; vi = vi->next){
 		if (first != TRUE) {
-			lstrcat(buf, TEXT(","));
+			lstrcat(buf, TEXT(", "));
 		}
 		first = FALSE;
 
 		if (vi->org_name != NULL) {
 			lstrcat(buf, TEXT("\""));
 			lstrcat(buf, vi->org_name);
-			lstrcat(buf, TEXT("\":"));
+			lstrcat(buf, TEXT("\": "));
 		} else if (vi->name != NULL) {
 			lstrcat(buf, TEXT("\""));
 			lstrcat(buf, vi->name);
-			lstrcat(buf, TEXT("\":"));
+			lstrcat(buf, TEXT("\": "));
 		}
 		if (vi->v->type == TYPE_ARRAY) {
 			lstrcat(buf, TEXT("{"));
@@ -383,7 +383,7 @@ static void _ArrayToString(VALUEINFO *vi, TCHAR *buf, BOOL hex_mode)
 			mem_free(&tmp);
 		} else if (vi->v->type == TYPE_FLOAT) {
 			TCHAR ftmp[FLOAT_LENGTH];
-			_stprintf_s(ftmp, FLOAT_LENGTH, TEXT("%.16f"), vi->v->u.fValue);
+			float_to_string(ftmp, vi->v->u.fValue);
 			lstrcat(buf, ftmp);
 		} else {
 			if (hex_mode == FALSE) {

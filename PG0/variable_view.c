@@ -653,7 +653,7 @@ static void setValueList(VALUEINFO *vi, VALUE_VIEW_INFO *vvi, int *vvi_count)
 			mem_free(&tmp);
 		} else if (vvi[index].vi->v->type == TYPE_FLOAT) {
 			TCHAR tmp[FLOAT_LENGTH];
-			_stprintf_s(tmp, FLOAT_LENGTH, TEXT("%.16f"), vvi[index].vi->v->u.fValue);
+			float_to_string(tmp, vvi[index].vi->v->u.fValue);
 			buf = (TCHAR *)mem_alloc(sizeof(TCHAR) * (lstrlen(tmp) + 1));
 			if (buf != NULL) {
 				lstrcpy(buf, tmp);

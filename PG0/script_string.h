@@ -29,6 +29,8 @@ TCHAR *str_cpy_n(TCHAR *ret, TCHAR *buf, const int len);
 int str_cmp_n(const TCHAR *buf1, const TCHAR *buf2, const int len);
 int str_cmp_i(const TCHAR *buf1, const TCHAR *buf2);
 int str_cmp_ni(const TCHAR *buf1, const TCHAR *buf2, const int len);
+double js_parse_int(const double f);
+void float_to_string(TCHAR *buf, const double f);
 TCHAR *f2a(const double f);
 TCHAR *i2a(const int i);
 int x2d(const TCHAR *str);

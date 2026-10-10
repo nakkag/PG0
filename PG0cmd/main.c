@@ -1013,7 +1013,11 @@ static void PrintValue(VALUEINFO *vi)
 		_tprintf(TEXT("%s"), vi->v->u.sValue);
 		break;
 	case TYPE_FLOAT:
-		_tprintf(TEXT("%.16f"), vi->v->u.fValue);
+	{
+		TCHAR tmp[FLOAT_LENGTH];
+		float_to_string(tmp, vi->v->u.fValue);
+		_tprintf(TEXT("%s"), tmp);
+	}
 		break;
 	default:
 		FormatValue(vi);

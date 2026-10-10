@@ -11,12 +11,18 @@
 /* Include Files */
 #include <windows.h>
 #include <tchar.h>
+#include <math.h>
+#include <float.h>
 
 #include "script_memory.h"
 #include "script_string.h"
 
 /* Define */
 #define BUF_SIZE				256
+// JavaScript の String(数値) の最大の長さ ("-0.000001234567890123456" など)
+#define JS_NUMBER_LENGTH		32
+// 2^53 (これより小さい整数は実数で正確に表せる)
+#define EXACT_INT_MAX			9007199254740992.0
 
 #define ToLower(c)				((c >= TEXT('A') && c <= TEXT('Z')) ? (c - TEXT('A') + TEXT('a')) : c)
 
@@ -139,6 +145,181 @@ int str_cmp_ni(const TCHAR *buf1, const TCHAR *buf2, const int len)
 }
 
 /*
+ * js_number_string - 実数を JavaScript の String(数値) と同じ表記にする
+ *                    (元の値に戻せる最も短い桁数、1e21 以上と 1e-6 未満は指数表記)
+ */
+static void js_number_string(TCHAR *buf, const double f)
+{
+	TCHAR tmp[JS_NUMBER_LENGTH];
+	TCHAR digits[JS_NUMBER_LENGTH];
+	TCHAR *r, *p;
+	double a;
+	int k, n, i, low, high;
+
+	if (_isnan(f)) {
+		lstrcpy(buf, TEXT("NaN"));
+		return;
+	}
+	if (f == 0) {
+		lstrcpy(buf, TEXT("0"));
+		return;
+	}
+	r = buf;
+	a = f;
+	if (a < 0) {
+		*(r++) = TEXT('-');
+		a = -a;
+	}
+	if (!_finite(a)) {
+		lstrcpy(r, TEXT("Infinity"));
+		return;
+	}
+	if (a < EXACT_INT_MAX && a == floor(a)) {
+		// 正確に表せる整数はそのままの桁
+		_ui64tot_s((unsigned __int64)a, r, JS_NUMBER_LENGTH - 1, 10);
+		return;
+	}
+
+	// 元の値に戻せる最も短い有効桁数
+	if (a >= DBL_MIN) {
+		// 15 桁の刻みは元の値に戻せる幅より広いので、15 桁で戻せればその末尾の 0 を除いたものが最短。
+		// 戻せなければ 16 桁、17 桁 (17 桁なら必ず戻せる)
+		for (k = 15; k <= 17; k++) {
+			_stprintf_s(tmp, JS_NUMBER_LENGTH, TEXT("%.*e"), k - 1, a);
+			if (k == 17 || _tcstod(tmp, NULL) == a) {
+				break;
+			}
+		}
+	} else {
+		// 非正規化数は有効桁が少ないので、桁数を二分探索する (桁数を増やせば必ず戻せる)
+		low = 1;
+		high = 17;
+		while (low < high) {
+			k = (low + high) / 2;
+			_stprintf_s(tmp, JS_NUMBER_LENGTH, TEXT("%.*e"), k - 1, a);
+			if (_tcstod(tmp, NULL) == a) {
+				high = k;
+			} else {
+				low = k + 1;
+			}
+		}
+		_stprintf_s(tmp, JS_NUMBER_LENGTH, TEXT("%.*e"), low - 1, a);
+	}
+	// tmp は "d.ddde+XX"。数字の並び (末尾の 0 を除く) と、値 = 0.数字 × 10^n の n にする
+	for (k = 0, p = tmp; *p != TEXT('\0') && *p != TEXT('e'); p++) {
+		if (*p != TEXT('.')) {
+			digits[k++] = *p;
+		}
+	}
+	for (; k > 1 && digits[k - 1] == TEXT('0'); k--);
+	digits[k] = TEXT('\0');
+	n = (*p == TEXT('e')) ? _ttoi(p + 1) + 1 : 1;
+
+	if (k <= n && n <= 21) {
+		// 整数: 数字のあとに 0 を補う
+		for (i = 0; i < n; i++) {
+			*(r++) = (i < k) ? digits[i] : TEXT('0');
+		}
+	} else if (0 < n && n <= 21) {
+		// n 桁目のあとに小数点
+		for (i = 0; i < k; i++) {
+			if (i == n) {
+				*(r++) = TEXT('.');
+			}
+			*(r++) = digits[i];
+		}
+	} else if (-6 < n && n <= 0) {
+		// 0.000ddd
+		*(r++) = TEXT('0');
+		*(r++) = TEXT('.');
+		for (i = 0; i < -n; i++) {
+			*(r++) = TEXT('0');
+		}
+		for (i = 0; i < k; i++) {
+			*(r++) = digits[i];
+		}
+	} else {
+		// 指数表記: d.ddde+XX
+		*(r++) = digits[0];
+		if (k > 1) {
+			*(r++) = TEXT('.');
+			for (i = 1; i < k; i++) {
+				*(r++) = digits[i];
+			}
+		}
+		wsprintf(r, TEXT("e%c%d"), (n - 1 >= 0) ? TEXT('+') : TEXT('-'), (n - 1 >= 0) ? n - 1 : 1 - n);
+		return;
+	}
+	*r = TEXT('\0');
+}
+
+/*
+ * parse_int_string - JavaScript の parseInt(文字列) と同じく先頭の整数を読む (数字が無ければ NaN)
+ */
+static double parse_int_string(const TCHAR *str)
+{
+	TCHAR buf[JS_NUMBER_LENGTH];
+	const TCHAR *p = str, *s;
+	BOOL neg = FALSE;
+	int len;
+
+	if (*p == TEXT('-') || *p == TEXT('+')) {
+		neg = (*p == TEXT('-'));
+		p++;
+	}
+	for (s = p; *p >= TEXT('0') && *p <= TEXT('9'); p++);
+	len = (int)(p - s);
+	if (len == 0) {
+		return NAN;
+	}
+	if (len >= JS_NUMBER_LENGTH) {
+		len = JS_NUMBER_LENGTH - 1;
+	}
+	CopyMemory(buf, s, sizeof(TCHAR) * len);
+	buf[len] = TEXT('\0');
+	return (neg) ? -_tcstod(buf, NULL) : _tcstod(buf, NULL);
+}
+
+/*
+ * js_parse_int - 実数を JavaScript の parseInt(数値) と同じく整数にする
+ *                (String(数値) の先頭の整数なので、指数表記の 1.5e-7 は 1 になる。NaN と無限大は NaN)
+ */
+double js_parse_int(const double f)
+{
+	TCHAR buf[JS_NUMBER_LENGTH];
+
+	js_number_string(buf, f);
+	return parse_int_string(buf);
+}
+
+/*
+ * float_to_string - 実数を Web版 (ScriptExec.getValueString) と同じ表記にする
+ *                   (String(数値) を小数点以下 16 桁まで 0 で埋める。buf は FLOAT_LENGTH 文字)
+ */
+void float_to_string(TCHAR *buf, const double f)
+{
+	TCHAR ip[JS_NUMBER_LENGTH];
+	int len;
+
+	if (_isnan(f)) {
+		lstrcpy(buf, TEXT("0"));
+		return;
+	}
+	js_number_string(buf, f);
+	if (_finite(f) && f == floor(f)) {
+		lstrcat(buf, TEXT(".0000000000000000"));
+		return;
+	}
+	// String(parseInt(数値)) の長さと小数点のあとに 16 桁
+	js_number_string(ip, parse_int_string(buf));
+	len = lstrlen(ip) + 1 + 16;
+	lstrcat(buf, TEXT("0000000000000000"));
+	if (lstrlen(buf) > len) {
+		buf[len] = TEXT('\0');
+	}
+}
+
+/*
  * f2a - 実数を10進表記の文字列に変換する
  */
 TCHAR *f2a(const double f)
@@ -149,7 +330,7 @@ TCHAR *f2a(const double f)
 	if (buf == NULL) {
 		return NULL;
 	}
-	swprintf_s(buf, FLOAT_LENGTH, TEXT("%.16f"), f);
+	float_to_string(buf, f);
 	return buf;
 }
 
