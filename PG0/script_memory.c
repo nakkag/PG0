@@ -21,6 +21,9 @@
 /* Global Variables */
 #ifdef _DEBUG
 static SIZE_T all_alloc_size = 0;
+// ライブラリのスレッド (通信など) も確保するので、合計はアトミックに更新する
+#define ADD_ALLOC_SIZE(size)	InterlockedExchangeAddSizeT(&all_alloc_size, (SIZE_T)(size))
+#define SUB_ALLOC_SIZE(size)	InterlockedExchangeAddSizeT(&all_alloc_size, (SIZE_T)0 - (SIZE_T)(size))
 
 //#define MEM_CHECK
 #ifdef MEM_CHECK
@@ -86,7 +89,7 @@ MEM_EXPORT void *mem_alloc(const int size)
 	if (mem == NULL) {
 		return mem;
 	}
-	all_alloc_size += HeapSize(GetProcessHeap(), 0, mem);
+	ADD_ALLOC_SIZE(HeapSize(GetProcessHeap(), 0, mem));
 #ifdef MEM_CHECK
 	if (address_index < ADDRESS_CNT) {
 		if (address_index == DEBUG_ADDRESS) {
@@ -121,7 +124,7 @@ MEM_EXPORT void *mem_calloc(const int size)
 	if (mem == NULL) {
 		return mem;
 	}
-	all_alloc_size += HeapSize(GetProcessHeap(), 0, mem);
+	ADD_ALLOC_SIZE(HeapSize(GetProcessHeap(), 0, mem));
 #ifdef MEM_CHECK
 	if (address_index < ADDRESS_CNT) {
 		if (address_index == DEBUG_ADDRESS) {
@@ -150,9 +153,9 @@ MEM_EXPORT void *mem_realloc(void *mem, const int size)
 	}
 #endif
 #ifdef _DEBUG
-	all_alloc_size -= HeapSize(GetProcessHeap(), 0, mem);
+	SUB_ALLOC_SIZE(HeapSize(GetProcessHeap(), 0, mem));
 	mem = HeapReAlloc(GetProcessHeap(), 0, mem, size);
-	all_alloc_size += HeapSize(GetProcessHeap(), 0, mem);
+	ADD_ALLOC_SIZE(HeapSize(GetProcessHeap(), 0, mem));
 #ifdef MEM_CHECK
 	if (address_index < ADDRESS_CNT) {
 		if (address_index == DEBUG_ADDRESS) {
@@ -183,7 +186,7 @@ MEM_EXPORT void mem_free(void **mem)
 #endif
 	if (*mem != NULL) {
 #ifdef _DEBUG
-		all_alloc_size -= HeapSize(GetProcessHeap(), 0, *mem);
+		SUB_ALLOC_SIZE(HeapSize(GetProcessHeap(), 0, *mem));
 #ifdef MEM_CHECK
 		{
 			int i;
