@@ -5,6 +5,7 @@ EXPORTS
 	_lib_func_netleave
 	_lib_func_netid
 	_lib_func_netroom
+	_lib_func_netrooms
 	_lib_func_netcount
 	_lib_func_netplayers
 	_lib_func_netsend

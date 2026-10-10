@@ -207,9 +207,10 @@ PG0 は PG0.5 の一部だけを使う。型は整数だけ、文は代入と `i
 - `#import("lib/screen.pg0")`: 画面への描画、キーとタッチの入力、音
 - `#import("lib/net.pg0")`: オンライン対戦用の通信。`netJoin(room = "", players = 2)` (自分の番号。入れなければ 0)、
   `netLeave()`、`netClose()`、`netId()`、`netRoom()`、`netCount()`、`netPlayers()`、`netSend(value, to = 全員)`、
-  `netAvailable()`、`netReceive()` (`{"from", "data"}`。無ければ 0)、`netLast(player)`。
+  `netAvailable()`、`netReceive()` (`{"from", "data"}`。無ければ 0)、`netLast(player)`、
+  `netRooms()` (部屋の一覧。部屋ごとに `{"room", "count", "max", "closed"}`。つながらなければ 0。ロビー用で、数秒おきに呼ぶ)。
   つながるのは pg0.exe でオンラインに保存したプログラムを実行したとき (と、そこから作った実行ファイル) だけで、pg0cmd.exe では
-  `netJoin` が 0 を返す。`netJoin` が 0 のときの処理 (ひとりで遊ぶ、メッセージを出して終わるなど) を書いておく
+  `netJoin` と `netRooms` が 0 を返す。`netJoin` が 0 のときの処理 (ひとりで遊ぶ、メッセージを出して終わるなど) を書いておく
 
 ### 画面ライブラリ (lib/screen.pg0)
 

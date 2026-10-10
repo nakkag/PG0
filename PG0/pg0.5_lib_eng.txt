@@ -917,6 +917,33 @@ netRoom()
 	* Return Value
 		The room name. "" when not in a room.
 
+netRooms()
+	* Description
+		Gets the rooms of this program (the same cid), for a lobby where a player picks a room to enter.
+		It can be called in a room or out of one, and waits for the answer of the server.
+		The rooms come in the order they were made (oldest first), up to 500. A room nobody is in is gone.
+		Every call asks the server, so call it every few seconds rather than every frame.
+		The rooms of people who opened the same program in the web version are included.
+	* Parameters
+		None
+	* Return Value
+		An array with {"room": name, "count": people, "max": seats, "closed": 0 or 1} for each room.
+		{} when there is no room. 0 when the server cannot be reached.
+
+	Example: enter a room that has a free seat
+		rooms = netRooms()
+		if (isType(rooms) != 3) {
+			println("Could not connect")
+			exit
+		}
+		for (i = 0; i < length(rooms); i++) {
+			r = rooms[i]
+			if (r["count"] < r["max"] && !r["closed"]) {
+				me = netJoin(r["room"])
+				break
+			}
+		}
+
 netCount()
 	* Description
 		Gets the number of people in the room, you included.

@@ -8,7 +8,7 @@
  * and pass values to each other over a WebSocket (net_server.js of the web version),
  * so a program run here and the same program in a browser can play together.
  * The cid is the one of the online script in the editor of pg0.exe (PG0_CID), or
- * the one a program built by pg0gen.exe carries; without it netJoin() returns 0.
+ * the one a program built by pg0gen.exe carries; without it netJoin() and netRooms() return 0.
  * Built into such a program with PG0_STATIC_LIB (lib_static.c).
  */
 
@@ -35,8 +35,10 @@
 #define NET_QUEUE				1000
 // nesting of the arrays sent and received; deeper values become 0
 #define NET_DEPTH				32
-// netJoin() waits this long for the server at most
+// netJoin() and netRooms() wait this long for the server at most
 #define NET_JOIN_WAIT			10000
+// a room name in the list of netRooms() is cut at this length
+#define NET_ROOM_LENGTH			32
 #define NET_TIMEOUT				10000
 // at the end of the script the thread of the connection is waited for this long at most
 #define NET_END_WAIT			2000
@@ -70,6 +72,7 @@ typedef struct _NET_CONN {
 	INTERNET_PORT port;
 	BOOL secure;
 	TCHAR *headers;
+	// the first message (NULL: a connection that only asks for the rooms)
 	char *join;
 
 	// handles a blocking call of the thread may be using (net_close closes them to stop it)
@@ -79,6 +82,8 @@ typedef struct _NET_CONN {
 	BOOL closed;
 	// the WebSocket is open
 	BOOL open;
+	// the thread has given up the connection (or never started)
+	BOOL ended;
 
 	// what the server has told
 	TCHAR result[NET_RESULT_SIZE];
@@ -93,6 +98,10 @@ typedef struct _NET_CONN {
 	NET_VALUE *queue_last;
 	int queue_count;
 	NET_VALUE *last;
+	// the answer to netRooms() (rooms_ok: the list came, rooms is NULL when there is no room)
+	VALUEINFO *rooms;
+	BOOL rooms_done;
+	BOOL rooms_ok;
 	// warnings of the server, shown by the script
 	BOOL warn_size;
 	BOOL warn_rate;
@@ -494,6 +503,7 @@ static void net_release(NET_CONN *c)
 	mem_free(&c->players);
 	free_values(c->queue);
 	free_values(c->last);
+	FreeValueList(c->rooms);
 	mem_free(&c);
 }
 
@@ -735,6 +745,62 @@ static void on_error(NET_CONN *c, const JSON *js)
 }
 
 /*
+ * room_value - a room of the list as the program sees it: {"room", "count", "max", "closed"},
+ *              rebuilt from what arrived (net.js: _netRoomList)
+ */
+static VALUEINFO *room_value(const JSON *r)
+{
+	VALUEINFO *top = NULL, *last = NULL;
+	TCHAR name[NET_ROOM_LENGTH + 1];
+	const TCHAR *room;
+
+	room = json_get_string(r, TEXT("room"));
+	lstrcpyn(name, (room != NULL) ? room : TEXT(""), NET_ROOM_LENGTH + 1);
+	if (lib_list_append(&top, &last, lib_new_string(TEXT("room"), name)) == NULL ||
+		lib_list_append(&top, &last, lib_new_int(TEXT("count"), to_int32(json_get_number(r, TEXT("count"), 0)))) == NULL ||
+		lib_list_append(&top, &last, lib_new_int(TEXT("max"), to_int32(json_get_number(r, TEXT("max"), 0)))) == NULL ||
+		lib_list_append(&top, &last, lib_new_int(TEXT("closed"), (json_is_true(json_get(r, TEXT("closed")))) ? 1 : 0)) == NULL) {
+		FreeValueList(top);
+		return NULL;
+	}
+	return lib_new_array(NULL, top);
+}
+
+/*
+ * on_rooms - the answer to netRooms(): the list, or no list when the server refused
+ */
+static void on_rooms(NET_CONN *c, const JSON *js)
+{
+	const JSON *m, *e;
+	VALUEINFO *top = NULL, *last = NULL, *old;
+	BOOL ok;
+
+	m = json_get(js, TEXT("rooms"));
+	ok = (m != NULL && m->type == JSON_ARRAY);
+	for (e = (ok) ? m->child : NULL; e != NULL; e = e->next) {
+		if (e->type != JSON_OBJECT && e->type != JSON_ARRAY) {
+			continue;
+		}
+		if (lib_list_append(&top, &last, room_value(e)) == NULL) {
+			ok = FALSE;
+			break;
+		}
+	}
+	if (!ok) {
+		FreeValueList(top);
+		top = NULL;
+	}
+
+	EnterCriticalSection(&c->cs);
+	old = c->rooms;
+	c->rooms = top;
+	c->rooms_ok = ok;
+	c->rooms_done = TRUE;
+	LeaveCriticalSection(&c->cs);
+	FreeValueList(old);
+}
+
+/*
  * on_receive - a message of the server (net.js: me.receive)
  */
 static void on_receive(NET_CONN *c, const char *text)
@@ -759,6 +825,8 @@ static void on_receive(NET_CONN *c, const char *text)
 		on_exit(c, to_int32(json_get_number(js, TEXT("id"), 0)));
 	} else if (_tcscmp(t, TEXT("msg")) == 0) {
 		on_message(c, js);
+	} else if (_tcscmp(t, TEXT("rooms")) == 0) {
+		on_rooms(c, js);
 	} else if (_tcscmp(t, TEXT("error")) == 0) {
 		on_error(c, js);
 	}
@@ -850,7 +918,8 @@ static DWORD WINAPI net_thread(LPVOID arg)
 		EnterCriticalSection(&c->cs);
 		c->open = !c->closed;
 		LeaveCriticalSection(&c->cs);
-		if (WinHttpWebSocketSend(hWebSocket, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, c->join, lstrlenA(c->join)) == NO_ERROR) {
+		if (c->join == NULL ||
+			WinHttpWebSocketSend(hWebSocket, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, c->join, lstrlenA(c->join)) == NO_ERROR) {
 			receive_loop(c, hWebSocket);
 		}
 		net_drop(c, &c->hWebSocket, hWebSocket);
@@ -858,6 +927,7 @@ static DWORD WINAPI net_thread(LPVOID arg)
 
 	EnterCriticalSection(&c->cs);
 	c->open = FALSE;
+	c->ended = TRUE;
 	c->id = 0;
 	c->player_count = 0;
 	if (*c->result == TEXT('\0')) {
@@ -880,6 +950,7 @@ static DWORD WINAPI net_thread(LPVOID arg)
 
 /*
  * net_new - a connection to the server of the online scripts (not started yet)
+ *           that enters the room, or only asks for the rooms when room is NULL
  */
 static NET_CONN *net_new(const TCHAR *cid, const TCHAR *room, const int max)
 {
@@ -927,6 +998,9 @@ static NET_CONN *net_new(const TCHAR *cid, const TCHAR *room, const int max)
 		}
 	}
 
+	if (room == NULL) {
+		return c;
+	}
 	// {"t": "join", "cid": "...", "room": "name" | "", "max": 2}
 	ZeroMemory(&t, sizeof(NET_TEXT));
 	text_add(&t, TEXT("{\"t\":\"join\",\"cid\":"));
@@ -939,6 +1013,10 @@ static NET_CONN *net_new(const TCHAR *cid, const TCHAR *room, const int max)
 		c->join = to_utf8(t.buf);
 	}
 	mem_free(&t.buf);
+	if (c->join == NULL) {
+		net_release(c);
+		return NULL;
+	}
 	return c;
 }
 
@@ -947,7 +1025,7 @@ static NET_CONN *net_new(const TCHAR *cid, const TCHAR *room, const int max)
  */
 static BOOL net_start(NET_CONN *c)
 {
-	if (c->host == NULL || c->headers == NULL || c->join == NULL) {
+	if (c->host == NULL || c->headers == NULL) {
 		return FALSE;
 	}
 #ifndef PG0_STATIC_LIB
@@ -1063,26 +1141,53 @@ static void net_server_warnings(EXECINFO *ei)
 }
 
 /*
- * net_send - send a message to the server (FALSE: not in a room, or it could not be sent)
+ * send_text - send a message over a WebSocket (FALSE: it could not be sent)
  */
-static BOOL net_send(const TCHAR *text)
+static BOOL send_text(HINTERNET hWebSocket, const TCHAR *text)
 {
-	NET_CONN *c;
-	HINTERNET hWebSocket;
 	char *utf8;
 	DWORD ret;
 
-	if ((c = net_current()) == NULL) {
-		return FALSE;
-	}
-	hWebSocket = c->hWebSocket;
-	LeaveCriticalSection(&c->cs);
 	if (hWebSocket == NULL || (utf8 = to_utf8(text)) == NULL) {
 		return FALSE;
 	}
 	ret = WinHttpWebSocketSend(hWebSocket, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, utf8, lstrlenA(utf8));
 	mem_free(&utf8);
 	return (ret == NO_ERROR);
+}
+
+/*
+ * net_send - send a message to the server (FALSE: not in a room, or it could not be sent)
+ */
+static BOOL net_send(const TCHAR *text)
+{
+	NET_CONN *c;
+	HINTERNET hWebSocket;
+
+	if ((c = net_current()) == NULL) {
+		return FALSE;
+	}
+	hWebSocket = c->hWebSocket;
+	LeaveCriticalSection(&c->cs);
+	return send_text(hWebSocket, text);
+}
+
+/*
+ * net_wait - wait a little for the server (FALSE: the time from start is up, or the script is stopped)
+ */
+static BOOL net_wait(EXECINFO *ei, const DWORD start, DWORD *check)
+{
+	if (GetTickCount() - start >= NET_JOIN_WAIT) {
+		return FALSE;
+	}
+	if (GetTickCount() - *check >= 100) {
+		*check = GetTickCount();
+		if (lib_check_stop(ei)) {
+			return FALSE;
+		}
+	}
+	Sleep(10);
+	return TRUE;
 }
 
 /*
@@ -1265,6 +1370,111 @@ int SFUNC _lib_func_netroom(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHA
 	if (!ok) {
 		lstrcpy(ErrStr, LIB_ERR_ALLOC);
 		return -1;
+	}
+	return 0;
+}
+
+/*
+ * _lib_func_netrooms - the rooms of this script, oldest first, as
+ *                      {{"room": name, "count": players, "max": seats, "closed": 0 | 1}, ...},
+ *                      or 0 when the server cannot be reached
+ *                      in a room it asks over that connection; out of one it keeps a connection
+ *                      that only asks for the list
+ */
+int SFUNC _lib_func_netrooms(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHAR *ErrStr)
+{
+	NET_CONN *c;
+	NET_TEXT t;
+	HINTERNET hWebSocket = NULL;
+	VALUEINFO *rooms = NULL, *old;
+	TCHAR cid[NET_CID_SIZE];
+	DWORD start, check, len;
+	BOOL usable = FALSE, connecting, done, open, sent, ok = FALSE;
+
+	net_server_warnings(ei);
+	lib_set_int(ret, 0);
+
+	// the cid of the script stored online, set by pg0.exe
+	len = GetEnvironmentVariable(ONLINE_CID_ENV, cid, NET_CID_SIZE);
+	if (len == 0 || len >= NET_CID_SIZE) {
+		net_notice(ei, NET_MSG_CID, NULL, NULL);
+		return 0;
+	}
+	if (net != NULL) {
+		EnterCriticalSection(&net->cs);
+		usable = !net->closed && !net->ended;
+		LeaveCriticalSection(&net->cs);
+	}
+	if (!usable) {
+		if ((c = net_new(cid, NULL, 0)) == NULL) {
+			lstrcpy(ErrStr, LIB_ERR_ALLOC);
+			return -1;
+		}
+		net_close(net);
+		net_release(net);
+		net = c;
+		if (!net_start(c)) {
+			c->ended = TRUE;
+			return 0;
+		}
+	}
+	c = net;
+
+	// until the connection is open (10 seconds at most, with the answer) or the script is stopped
+	start = check = GetTickCount();
+	while (1) {
+		EnterCriticalSection(&c->cs);
+		hWebSocket = (c->open) ? c->hWebSocket : NULL;
+		connecting = !c->open && !c->closed && !c->ended;
+		LeaveCriticalSection(&c->cs);
+		if (!connecting || !net_wait(ei, start, &check)) {
+			break;
+		}
+	}
+	if (hWebSocket == NULL) {
+		return 0;
+	}
+
+	// {"t": "rooms", "cid": "..."}
+	ZeroMemory(&t, sizeof(NET_TEXT));
+	text_add(&t, TEXT("{\"t\":\"rooms\",\"cid\":"));
+	text_add_string(&t, cid);
+	text_add(&t, TEXT("}"));
+	if (t.error) {
+		mem_free(&t.buf);
+		lstrcpy(ErrStr, LIB_ERR_ALLOC);
+		return -1;
+	}
+	EnterCriticalSection(&c->cs);
+	old = c->rooms;
+	c->rooms = NULL;
+	c->rooms_done = FALSE;
+	c->rooms_ok = FALSE;
+	LeaveCriticalSection(&c->cs);
+	FreeValueList(old);
+	sent = send_text(hWebSocket, t.buf);
+	mem_free(&t.buf);
+	if (!sent) {
+		return 0;
+	}
+
+	// until the server answers
+	while (1) {
+		EnterCriticalSection(&c->cs);
+		done = c->rooms_done;
+		open = c->open;
+		if (done) {
+			ok = c->rooms_ok;
+			rooms = c->rooms;
+			c->rooms = NULL;
+		}
+		LeaveCriticalSection(&c->cs);
+		if (done || !open || !net_wait(ei, start, &check)) {
+			break;
+		}
+	}
+	if (ok) {
+		lib_set_array(ret, rooms);
 	}
 	return 0;
 }
