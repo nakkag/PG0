@@ -12,6 +12,8 @@
 #include <windows.h>
 #include <tchar.h>
 #include <malloc.h>
+#include <math.h>
+#include <float.h>
 
 #include "script.h"
 #include "script_string.h"
@@ -350,6 +352,33 @@ void InitializeScriptInfo(SCRIPTINFO *sci, BOOL op_exp, BOOL op_extension)
 }
 
 /*
+ * IsIntValue - 実数が整数型で表せる値か (Web版の ScriptExec.checkInt)
+ */
+static BOOL IsIntValue(const double d)
+{
+	return (d >= -2147483648.0 && d <= 2147483647.0 && d == floor(d));
+}
+
+/*
+ * ToInt32 - 実数を 32 ビットの整数にする (範囲外は 2^32 で折り返す、JavaScript の ToInt32)
+ */
+static int ToInt32(double d)
+{
+	if (!_finite(d)) {
+		return 0;
+	}
+	d = (d < 0) ? ceil(d) : floor(d);
+	d = fmod(d, 4294967296.0);
+	if (d < 0) {
+		d += 4294967296.0;
+	}
+	if (d >= 2147483648.0) {
+		d -= 4294967296.0;
+	}
+	return (int)d;
+}
+
+/*
  * SetValue - 値の設定
  */
 static void SetValue(VALUE *to_v, VALUE *from_v)
@@ -368,7 +397,7 @@ static void SetValue(VALUE *to_v, VALUE *from_v)
 		break;
 	case TYPE_FLOAT:
 		// 実数
-		if (from_v->u.fValue == (double)((int)from_v->u.fValue)) {
+		if (IsIntValue(from_v->u.fValue)) {
 			to_v->u.iValue = (int)from_v->u.fValue;
 			type = TYPE_INTEGER;
 		} else {
@@ -705,7 +734,7 @@ static VALUEINFO *UnaryCalcValueFloat(EXECINFO *ei, VALUEINFO *vi, int c)
 		break;
 
 	case SYM_BITNOT:
-		f = ~(int)f;
+		f = ~ToInt32(f);
 		break;
 
 	case SYM_INC:
@@ -748,7 +777,7 @@ static VALUEINFO *UnaryCalcValueFloat(EXECINFO *ei, VALUEINFO *vi, int c)
 		Error(ei, ERR_ALLOC, ei->err, NULL);
 		return NULL;
 	}
-	if (f == (double)((int)f)) {
+	if (IsIntValue(f)) {
 		vret->v->u.iValue = (int)f;
 		vret->v->type = TYPE_INTEGER;
 	} else {
@@ -875,7 +904,10 @@ static VALUEINFO *IntegerCalcValue(EXECINFO *ei, VALUEINFO *v1, VALUEINFO *v2, i
 			Error(ei, ERR_DIVZERO, ei->err, NULL);
 			return NULL;
 		}
-		if (c == SYM_DIV) {
+		if (j == -1) {
+			// -2147483648 / -1 は桁あふれするので符号を反転して折り返す (余りは常に 0)
+			i = (c == SYM_DIV) ? (int)(0U - (unsigned int)i) : 0;
+		} else if (c == SYM_DIV) {
 			if (ei->sci->extension == TRUE && (i % j) != 0) {
 				return FloatCalcValue(ei, v1, v2, c);
 			}
@@ -945,7 +977,8 @@ static VALUEINFO *FloatCalcValue(EXECINFO *ei, VALUEINFO *v1, VALUEINFO *v2, int
 		if (c == SYM_DIV) {
 			i /= j;
 		} else {
-			i = (int)i % (int)j;
+			// 実数の余り (JavaScript の % と同じ)
+			i = fmod(i, j);
 		}
 		break;
 
@@ -958,13 +991,14 @@ static VALUEINFO *FloatCalcValue(EXECINFO *ei, VALUEINFO *v1, VALUEINFO *v2, int
 	case SYM_LEFT: i = i < j; break;
 	case SYM_RIGHTEQ: i = i >= j; break;
 	case SYM_RIGHT: i = i > j; break;
-	case SYM_AND: i = (int)i & (int)j; break;
-	case SYM_OR: i = (int)i | (int)j; break;
-	case SYM_XOR: i = (int)i ^ (int)j; break;
-	case SYM_LEFTSHIFT: i = (int)i << (int)j; break;
-	case SYM_RIGHTSHIFT: i = (int)i >> (int)j; break;
-	case SYM_LEFTSHIFT_LOGICAL: i = (unsigned int)i << (int)j; break;
-	case SYM_RIGHTSHIFT_LOGICAL: i = (unsigned int)i >> (int)j; break;
+	// ビット演算は 32 ビットの整数にしてから行う (JavaScript と同じ)
+	case SYM_AND: i = ToInt32(i) & ToInt32(j); break;
+	case SYM_OR: i = ToInt32(i) | ToInt32(j); break;
+	case SYM_XOR: i = ToInt32(i) ^ ToInt32(j); break;
+	case SYM_LEFTSHIFT: i = (int)((unsigned int)ToInt32(i) << (ToInt32(j) & 31)); break;
+	case SYM_RIGHTSHIFT: i = ToInt32(i) >> (ToInt32(j) & 31); break;
+	case SYM_LEFTSHIFT_LOGICAL: i = (unsigned int)ToInt32(i) << (ToInt32(j) & 31); break;
+	case SYM_RIGHTSHIFT_LOGICAL: i = (unsigned int)ToInt32(i) >> (ToInt32(j) & 31); break;
 
 	default:
 		Error(ei, ERR_OPERATOR, ei->err, NULL);
@@ -976,7 +1010,7 @@ static VALUEINFO *FloatCalcValue(EXECINFO *ei, VALUEINFO *v1, VALUEINFO *v2, int
 		Error(ei, ERR_ALLOC, ei->err, NULL);
 		return NULL;
 	}
-	if (i == (double)((int)i)) {
+	if (IsIntValue(i)) {
 		vret->v->u.iValue = (int)i;
 		vret->v->type = TYPE_INTEGER;
 	} else {
