@@ -840,7 +840,7 @@ static void receive_loop(NET_CONN *c, HINTERNET hWebSocket)
 {
 	WINHTTP_WEB_SOCKET_BUFFER_TYPE type;
 	char *buf, *nb;
-	DWORD len = 0, size = NET_RECEIVE_BLOCK, read;
+	DWORD len = 0, size = NET_RECEIVE_BLOCK, read, err;
 	BOOL drop = FALSE;
 
 	if ((buf = mem_alloc(size + 1)) == NULL) {
@@ -861,8 +861,12 @@ static void receive_loop(NET_CONN *c, HINTERNET hWebSocket)
 			}
 		}
 		read = 0;
-		if (WinHttpWebSocketReceive(hWebSocket, buf + len, size - len, &read, &type) != NO_ERROR ||
-			type == WINHTTP_WEB_SOCKET_CLOSE_BUFFER_TYPE) {
+		err = WinHttpWebSocketReceive(hWebSocket, buf + len, size - len, &read, &type);
+		if (err == ERROR_WINHTTP_TIMEOUT) {
+			// a quiet room: the receive timeout of the session, should it apply here, is not the end
+			continue;
+		}
+		if (err != NO_ERROR || type == WINHTTP_WEB_SOCKET_CLOSE_BUFFER_TYPE) {
 			break;
 		}
 		len += read;
@@ -1141,19 +1145,47 @@ static void net_server_warnings(EXECINFO *ei)
 }
 
 /*
+ * send_utf8 - send a message in UTF-8 over a WebSocket (FALSE: it could not be sent)
+ */
+static BOOL send_utf8(HINTERNET hWebSocket, const char *utf8)
+{
+	if (hWebSocket == NULL || utf8 == NULL) {
+		return FALSE;
+	}
+	return (WinHttpWebSocketSend(hWebSocket, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, (PVOID)utf8, lstrlenA(utf8)) == NO_ERROR);
+}
+
+/*
  * send_text - send a message over a WebSocket (FALSE: it could not be sent)
  */
 static BOOL send_text(HINTERNET hWebSocket, const TCHAR *text)
 {
 	char *utf8;
-	DWORD ret;
+	BOOL ret;
 
 	if (hWebSocket == NULL || (utf8 = to_utf8(text)) == NULL) {
 		return FALSE;
 	}
-	ret = WinHttpWebSocketSend(hWebSocket, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, utf8, lstrlenA(utf8));
+	ret = send_utf8(hWebSocket, utf8);
 	mem_free(&utf8);
-	return (ret == NO_ERROR);
+	return ret;
+}
+
+/*
+ * net_send_utf8 - send a message in UTF-8 to the server (FALSE: not in a room, or it could not be sent)
+ *                 The handle is used under the lock, so that the net thread cannot close it meanwhile.
+ */
+static BOOL net_send_utf8(const char *utf8)
+{
+	NET_CONN *c;
+	BOOL ret;
+
+	if ((c = net_current()) == NULL) {
+		return FALSE;
+	}
+	ret = send_utf8(c->hWebSocket, utf8);
+	LeaveCriticalSection(&c->cs);
+	return ret;
 }
 
 /*
@@ -1161,15 +1193,15 @@ static BOOL send_text(HINTERNET hWebSocket, const TCHAR *text)
  */
 static BOOL net_send(const TCHAR *text)
 {
-	NET_CONN *c;
-	HINTERNET hWebSocket;
+	char *utf8;
+	BOOL ret;
 
-	if ((c = net_current()) == NULL) {
+	if ((utf8 = to_utf8(text)) == NULL) {
 		return FALSE;
 	}
-	hWebSocket = c->hWebSocket;
-	LeaveCriticalSection(&c->cs);
-	return send_text(hWebSocket, text);
+	ret = net_send_utf8(utf8);
+	mem_free(&utf8);
+	return ret;
 }
 
 /*
@@ -1300,7 +1332,7 @@ int SFUNC _lib_func_netjoin(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHA
 				net_notice(ei, NET_MSG_FULL, TEXT("room"), room);
 			} else if (_tcscmp(result, TEXT("closed")) == 0) {
 				net_notice(ei, NET_MSG_CLOSED, TEXT("room"), room);
-			} else if (_tcscmp(result, TEXT("busy")) == 0) {
+			} else if (_tcscmp(result, TEXT("busy")) == 0 || _tcscmp(result, TEXT("rate")) == 0) {
 				net_notice(ei, NET_MSG_BUSY, NULL, NULL);
 			} else {
 				net_notice(ei, NET_MSG_CONNECT, NULL, NULL);
@@ -1452,7 +1484,10 @@ int SFUNC _lib_func_netrooms(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCH
 	c->rooms_ok = FALSE;
 	LeaveCriticalSection(&c->cs);
 	FreeValueList(old);
-	sent = send_text(hWebSocket, t.buf);
+	// (the handle is used under the lock, so that the net thread cannot close it meanwhile)
+	EnterCriticalSection(&c->cs);
+	sent = (c->open) ? send_text(c->hWebSocket, t.buf) : FALSE;
+	LeaveCriticalSection(&c->cs);
 	mem_free(&t.buf);
 	if (!sent) {
 		return 0;
@@ -1524,6 +1559,7 @@ int SFUNC _lib_func_netsend(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHA
 	NET_CONN *c;
 	NET_TEXT t;
 	TCHAR buf[INT_LENGTH + 16];
+	char *utf8;
 	int bytes, to = 0;
 
 	if (param == NULL) {
@@ -1554,13 +1590,19 @@ int SFUNC _lib_func_netsend(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHA
 		lstrcpy(ErrStr, LIB_ERR_ALLOC);
 		return -1;
 	}
-	// the limit of the server counts the characters of the text
-	if (bytes > 0 && t.len > bytes) {
+	// the limit of the server counts the bytes of the text in UTF-8
+	utf8 = to_utf8(t.buf);
+	mem_free(&t.buf);
+	if (utf8 == NULL) {
+		lstrcpy(ErrStr, LIB_ERR_ALLOC);
+		return -1;
+	}
+	if (bytes > 0 && lstrlenA(utf8) > bytes) {
 		net_warn(ei, net, NET_MSG_SIZE);
-	} else if (net_send(t.buf)) {
+	} else if (net_send_utf8(utf8)) {
 		lib_set_int(ret, 1);
 	}
-	mem_free(&t.buf);
+	mem_free(&utf8);
 	return 0;
 }
 
