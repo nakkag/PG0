@@ -533,14 +533,31 @@ static unsigned int CALLBACK StartScript(const HWND hWnd)
 /*
  * ExecScriptThread - スクリプト実行スレッド
  */
+/*
+ * ExportOnline - オンラインのスクリプトの cid とエディタのプログラムのハッシュを、これから動かすスクリプトに渡す
+ *                (lib/net.pg0 が同じスクリプト同士をつなぐのに使う)
+ */
+static void ExportOnline(void)
+{
+	TCHAR *buf = NULL;
+	int len;
+
+	len = (int)SendMessage(hEdit, WM_GETTEXTLENGTH, 0, 0);
+	if (len > 0 && (buf = (TCHAR *)mem_alloc(sizeof(TCHAR) * (len + 1))) != NULL) {
+		SendMessage(hEdit, WM_GETTEXT, len + 1, (LPARAM)buf);
+		*(buf + len) = TEXT('\0');
+	}
+	online_export_cid(buf);
+	mem_free(&buf);
+}
+
 static void ExecScriptThread(const HWND hWnd)
 {
 	unsigned int thId = -1;
 	if (hThread != NULL) {
 		return;
 	}
-	// オンラインのスクリプトの cid (lib/net.pg0 が同じスクリプト同士をつなぐのに使う)
-	online_export_cid();
+	ExportOnline();
 	hThread = CreateThread(NULL, 0, StartScript, (void *)hWnd, 0, (unsigned *)&thId);
 }
 
@@ -1203,8 +1220,8 @@ static BOOL GenerateExe(const HWND hWnd)
 #endif
 		(op.strict_val == 0) ? TEXT("") : TEXT("s"), tmp, out);
 
-	// オンラインのスクリプトの cid (通信ライブラリを使うスクリプトは実行ファイルに含める)
-	online_export_cid();
+	// オンラインのスクリプトの cid とハッシュ (通信ライブラリを使うスクリプトは実行ファイルに含める)
+	ExportOnline();
 
 	// 出力をパイプで受け取る
 	ZeroMemory(&sa, sizeof(sa));

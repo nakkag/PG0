@@ -30,6 +30,8 @@
 #define NET_USER_AGENT			L"PG0"
 #define NET_URL_SIZE			1024
 #define NET_CID_SIZE			128
+// the hash of the program (64 hex digits)
+#define NET_HASH_SIZE			80
 #define NET_RESULT_SIZE			16
 // received values kept for netReceive(); past this the oldest are dropped
 #define NET_QUEUE				1000
@@ -128,6 +130,7 @@ typedef enum {
 	NET_MSG_BUSY,
 	NET_MSG_SIZE,
 	NET_MSG_RATE,
+	NET_MSG_MODIFIED,
 } NET_MSG_ID;
 
 /* Global Variables */
@@ -142,6 +145,7 @@ static const TCHAR *msg_jp[] = {
 	TEXT("netJoin: サーバーが混み合っています。しばらくしてからもう一度試してください。"),
 	TEXT("netSend: 送る値が大きすぎます（{bytes} バイトまで）。"),
 	TEXT("netSend: 送る回数が多すぎるので、一部を送りませんでした（1 秒に {rate} 回まで）。"),
+	TEXT("netJoin: プログラムがオンラインに保存したものと違います。保存してから実行してください。"),
 };
 static const TCHAR *msg_en[] = {
 	TEXT("netJoin: works only in a program saved online (saving gives it a cid)."),
@@ -151,6 +155,7 @@ static const TCHAR *msg_en[] = {
 	TEXT("netJoin: the server is busy. Try again later."),
 	TEXT("netSend: the value is too large to send (up to {bytes} bytes)."),
 	TEXT("netSend: too many values were sent, so some were not ({rate} a second at most)."),
+	TEXT("netJoin: the program differs from the one saved online. Save it, then run it."),
 };
 
 /* Local Function Prototypes */
@@ -962,6 +967,7 @@ static NET_CONN *net_new(const TCHAR *cid, const TCHAR *room, const int max)
 	URL_COMPONENTS uc;
 	NET_TEXT t;
 	TCHAR server[NET_URL_SIZE];
+	TCHAR hash[NET_HASH_SIZE];
 	TCHAR buf[INT_LENGTH + 16];
 	DWORD len;
 
@@ -1005,12 +1011,19 @@ static NET_CONN *net_new(const TCHAR *cid, const TCHAR *room, const int max)
 	if (room == NULL) {
 		return c;
 	}
-	// {"t": "join", "cid": "...", "room": "name" | "", "max": 2}
+	// the hash of the program in the editor, set by pg0.exe (the server lets only the saved program in)
+	len = GetEnvironmentVariable(ONLINE_HASH_ENV, hash, NET_HASH_SIZE);
+	if (len == 0 || len >= NET_HASH_SIZE) {
+		*hash = TEXT('\0');
+	}
+	// {"t": "join", "cid": "...", "room": "name" | "", "max": 2, "hash": "..."}
 	ZeroMemory(&t, sizeof(NET_TEXT));
 	text_add(&t, TEXT("{\"t\":\"join\",\"cid\":"));
 	text_add_string(&t, cid);
 	text_add(&t, TEXT(",\"room\":"));
 	text_add_string(&t, room);
+	text_add(&t, TEXT(",\"hash\":"));
+	text_add_string(&t, hash);
 	wsprintf(buf, TEXT(",\"max\":%d}"), max);
 	text_add(&t, buf);
 	if (!t.error) {
@@ -1328,6 +1341,8 @@ int SFUNC _lib_func_netjoin(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHA
 		if (!stopped) {
 			if (_tcscmp(result, TEXT("cid")) == 0) {
 				net_notice(ei, NET_MSG_CID, NULL, NULL);
+			} else if (_tcscmp(result, TEXT("modified")) == 0) {
+				net_notice(ei, NET_MSG_MODIFIED, NULL, NULL);
 			} else if (_tcscmp(result, TEXT("full")) == 0) {
 				net_notice(ei, NET_MSG_FULL, TEXT("room"), room);
 			} else if (_tcscmp(result, TEXT("closed")) == 0) {
