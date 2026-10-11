@@ -864,6 +864,7 @@ netJoin(room, players)
 		Once such an automatic room has been full, nobody else enters it.
 		With a room name agreed beforehand, friends can enter the same room.
 		A full room, or a room closed with netClose(), cannot be entered.
+		Only the program as saved online can enter (after a change, save it and run it again).
 		When it is already in a room, it leaves that room first.
 	* Parameters
 		room - Room name (optional, up to 32 characters)

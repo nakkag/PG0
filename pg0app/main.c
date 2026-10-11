@@ -405,7 +405,7 @@ static void set_online(void)
 	HRSRC hRes;
 	HGLOBAL hGlobal;
 	const TCHAR *data;
-	TCHAR *buf, *p;
+	TCHAR *buf, *p, *q;
 	DWORD size;
 
 	hRes = FindResourceEx(NULL, RT_RCDATA, IMAGE_ONLINE_RESOURCE_NAME, MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL));
@@ -413,15 +413,20 @@ static void set_online(void)
 		(data = LockResource(hGlobal)) == NULL || (size = SizeofResource(NULL, hRes)) == 0) {
 		return;
 	}
-	// "<cid>\n<server>"
+	// "<cid>\n<server>\n<hash>" (the hash is the program's, which the server compares with the saved one)
 	if ((buf = alloc_copy_n((TCHAR *)data, size / sizeof(TCHAR))) == NULL) {
 		return;
 	}
 	for (p = buf; *p != TEXT('\0') && *p != TEXT('\n'); p++);
 	if (*p == TEXT('\n')) {
 		*(p++) = TEXT('\0');
+		for (q = p; *q != TEXT('\0') && *q != TEXT('\n'); q++);
+		if (*q == TEXT('\n')) {
+			*(q++) = TEXT('\0');
+		}
 		SetEnvironmentVariable(ONLINE_CID_ENV, buf);
 		SetEnvironmentVariable(ONLINE_SERVER_ENV, p);
+		SetEnvironmentVariable(ONLINE_HASH_ENV, (*q != TEXT('\0')) ? q : NULL);
 	}
 	mem_free(&buf);
 }

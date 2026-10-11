@@ -2311,12 +2311,66 @@ const TCHAR *online_get_cid(void)
 }
 
 /*
- * online_export_cid - pass the cid of the online script in the editor to the script about to run
- *                     (lib/net.pg0 meets the copies of the same script with it; removed when there is none)
+ * program_hash - SHA-256 of a program as the server hashes the saved one: in UTF-8, without CR and
+ *                without the line breaks at the end, as hex (hex takes 65 TCHARs; FALSE when it could not be done)
  */
-void online_export_cid(void)
+static BOOL program_hash(const TCHAR *code, TCHAR *hex)
 {
-	SetEnvironmentVariable(ONLINE_CID_ENV, online_get_cid());
+	HCRYPTPROV hProv = 0;
+	HCRYPTHASH hHash = 0;
+	TCHAR *text, *p;
+	char *utf8 = NULL;
+	BYTE digest[32];
+	DWORD size = sizeof(digest);
+	int len, i;
+	BOOL ret = FALSE;
+
+	if ((text = alloc_copy(code)) == NULL) {
+		return FALSE;
+	}
+	for (p = text; *code != TEXT('\0'); code++) {
+		if (*code != TEXT('\r')) {
+			*(p++) = *code;
+		}
+	}
+	for (; p > text && *(p - 1) == TEXT('\n'); p--);
+	*p = TEXT('\0');
+	len = WideCharToMultiByte(CP_UTF8, 0, text, -1, NULL, 0, NULL, NULL);
+	if (len > 0 && (utf8 = mem_alloc(len)) != NULL) {
+		WideCharToMultiByte(CP_UTF8, 0, text, -1, utf8, len, NULL, NULL);
+		if (CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_AES, CRYPT_VERIFYCONTEXT) &&
+			CryptCreateHash(hProv, CALG_SHA_256, 0, 0, &hHash) &&
+			CryptHashData(hHash, (BYTE *)utf8, len - 1, 0) &&
+			CryptGetHashParam(hHash, HP_HASHVAL, digest, &size, 0) && size == sizeof(digest)) {
+			for (i = 0; i < (int)size; i++) {
+				wsprintf(hex + i * 2, TEXT("%02x"), digest[i]);
+			}
+			ret = TRUE;
+		}
+		if (hHash != 0) {
+			CryptDestroyHash(hHash);
+		}
+		if (hProv != 0) {
+			CryptReleaseContext(hProv, 0);
+		}
+	}
+	mem_free(&utf8);
+	mem_free(&text);
+	return ret;
+}
+
+/*
+ * online_export_cid - pass the cid of the online script in the editor, and the hash of the program
+ *                     (code) in the editor, to the script about to run (lib/net.pg0 meets the copies
+ *                     of the same script with them; removed when there is no cid)
+ */
+void online_export_cid(const TCHAR *code)
+{
+	TCHAR hex[65];
+	const TCHAR *cid = online_get_cid();
+
+	SetEnvironmentVariable(ONLINE_CID_ENV, cid);
+	SetEnvironmentVariable(ONLINE_HASH_ENV, (cid != NULL && code != NULL && program_hash(code, hex)) ? hex : NULL);
 }
 
 /*

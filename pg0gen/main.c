@@ -197,6 +197,7 @@ static TCHAR *online_text(void)
 {
 	TCHAR cid[BUF_SIZE];
 	TCHAR server[BUF_SIZE];
+	TCHAR hash[BUF_SIZE];
 	TCHAR *ret;
 	DWORD len;
 
@@ -208,9 +209,14 @@ static TCHAR *online_text(void)
 	if (len == 0 || len >= BUF_SIZE) {
 		lstrcpy(server, ONLINE_DEFAULT_SERVER);
 	}
-	ret = mem_alloc(sizeof(TCHAR) * (lstrlen(cid) + lstrlen(server) + 2));
+	// the hash of the program, which the server compares with the saved one
+	len = GetEnvironmentVariable(ONLINE_HASH_ENV, hash, BUF_SIZE);
+	if (len == 0 || len >= BUF_SIZE) {
+		*hash = TEXT('\0');
+	}
+	ret = mem_alloc(sizeof(TCHAR) * (lstrlen(cid) + lstrlen(server) + lstrlen(hash) + 3));
 	if (ret != NULL) {
-		wsprintf(ret, TEXT("%s\n%s"), cid, server);
+		wsprintf(ret, TEXT("%s\n%s\n%s"), cid, server, hash);
 	}
 	return ret;
 }

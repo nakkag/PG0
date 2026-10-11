@@ -21,6 +21,8 @@
 #define ONLINE_SERVER_ENV				TEXT("PG0_SERVER")
 // cid of the online script in the editor while it runs (lib/net.pg0 connects only with it)
 #define ONLINE_CID_ENV					TEXT("PG0_CID")
+// SHA-256 of the program in the editor, as hex (the server lets only the program saved under the cid in)
+#define ONLINE_HASH_ENV					TEXT("PG0_HASH")
 
 /* Struct */
 // result of a request, posted to the window as LPARAM (free it with http_free_result)
