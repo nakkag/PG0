@@ -30,7 +30,7 @@ PowerShell で以下を実行すると、PG0 本体とライブラリの Win32 (
   PS> .\build.ps1
 
 作成したインストーラは Installer\out に出力されます。
-出力するファイル名は pg0<バージョン>.exe です。Ver 0.3.7 なら pg0037.exe に
+出力するファイル名は pg0_<バージョン>.exe です。Ver 0.3.7 なら pg0_037.exe に
 なります。バージョンは PG0\pg0edit.rc の FILEVERSION から取得します。
 インストーラに含まれるのは Release|Win32 構成でビルドした pg0.exe などです。
 
@@ -60,7 +60,7 @@ Installer プロジェクトだけをビルドすることもできます。そ�
 
 ビルド前のイベントで prepare.ps1 がファイルの収集と ZIP の作成、バージョン情報の
 instinfo.h の生成を行い、ビルド後のイベントで prepare.ps1 が Installer\out へ
-pg0<バージョン>.exe として出力します。build.ps1 はこのプロジェクトを msbuild で
+pg0_<バージョン>.exe として出力します。build.ps1 はこのプロジェクトを msbuild で
 ビルドしているだけなので、どちらの方法でも結果は同じです。
 
 Installer\out に出力するのは Release 構成のときだけです。Debug 構成でビルドした
@@ -121,7 +121,7 @@ prepare.ps1 が以下のファイルを収集して ZIP にまとめ、インス
 コントロールパネルから実行できます。
 インストーラに引数を指定して実行することもできます。
 
-  pg0037.exe /uninstall
+  pg0_037.exe /uninstall
 
 インストール先に配置される uninstall.exe も同じ動作です。
 

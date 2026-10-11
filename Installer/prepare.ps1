@@ -9,7 +9,7 @@
 		バージョン情報の instinfo.h を生成します。
 		Installer.vcxproj のビルド前のイベントから呼び出されます。
 	Publish
-		ビルドしたインストーラを pg0<バージョン>.exe として出力します。
+		ビルドしたインストーラを pg0_<バージョン>.exe として出力します。
 		Installer.vcxproj のビルド後のイベントから呼び出されます。
 
 	通常は build.ps1 から Visual Studio のプロジェクト経由で実行されます。
@@ -63,7 +63,7 @@ function Get-Pg0Version([string]$specified) {
 		Minor    = $minor
 		Revision = $revision
 		Text     = "$major.$minor.$revision"
-		FileName = "pg0$major$minor$revision.exe"
+		FileName = "pg0_$major$minor$revision.exe"
 	}
 }
 

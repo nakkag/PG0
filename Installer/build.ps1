@@ -6,7 +6,7 @@
 .DESCRIPTION
 	PG0 本体とライブラリのビルド (Win32)、インストールするファイルの収集、
 	ZIP の作成、インストーラのビルドまでを一括で行います。
-	出力するファイル名は pg0<バージョン>.exe になります。(Ver 0.3.7 なら pg0037.exe)
+	出力するファイル名は pg0_<バージョン>.exe になります。(Ver 0.3.7 なら pg0_037.exe)
 
 	インストールするファイルの収集と ZIP の作成は、Installer.vcxproj の
 	ビルド前のイベントから prepare.ps1 が行います。Visual Studio で
@@ -120,7 +120,7 @@ if (-not [string]::IsNullOrEmpty($Version)) {
 & (Join-Path $InstallerDir "prepare.ps1") @publishArgs
 
 $outRoot = if ([string]::IsNullOrEmpty($OutDir)) { Join-Path $InstallerDir "out" } else { $OutDir }
-$exe = Get-ChildItem -Path (Join-Path $outRoot "pg0*.exe") -ErrorAction SilentlyContinue |
+$exe = Get-ChildItem -Path (Join-Path $outRoot "pg0_*.exe") -ErrorAction SilentlyContinue |
 	Where-Object { $_.LastWriteTimeUtc -ge (Get-Item $targetPath).LastWriteTimeUtc } |
 	Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($null -eq $exe) {
