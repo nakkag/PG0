@@ -145,6 +145,35 @@ int str_cmp_ni(const TCHAR *buf1, const TCHAR *buf2, const int len)
 }
 
 /*
+ * next_decimal - %.*e の "d.ddde+XX" を、同じ桁数でひとつ上の値にする (末尾の桁を 1 増やし、
+ *                9.99e+2 は 1.00e+3 のように繰り上げる)
+ */
+static void next_decimal(TCHAR *tmp, const int size)
+{
+	TCHAR *e, *p;
+	int exp;
+
+	for (e = tmp; *e != TEXT('\0') && *e != TEXT('e'); e++);
+	if (*e != TEXT('e')) {
+		return;
+	}
+	exp = _ttoi(e + 1);
+	for (p = e - 1; p >= tmp; p--) {
+		if (*p == TEXT('.')) {
+			continue;
+		}
+		if (*p < TEXT('9')) {
+			(*p)++;
+			return;
+		}
+		*p = TEXT('0');
+	}
+	// 先頭から繰り上がった: 1 のあとに 0 が並び、指数がひとつ上がる
+	*tmp = TEXT('1');
+	_stprintf_s(e, size - (int)(e - tmp), TEXT("e%+03d"), exp + 1);
+}
+
+/*
  * js_number_string - 実数を JavaScript の String(数値) と同じ表記にする
  *                    (元の値に戻せる最も短い桁数、1e21 以上と 1e-6 未満は指数表記)
  */
@@ -154,7 +183,7 @@ static void js_number_string(TCHAR *buf, const double f)
 	TCHAR digits[JS_NUMBER_LENGTH];
 	TCHAR *r, *p;
 	double a;
-	int k, n, i, low, high;
+	int k, n, i, low, high, ex;
 
 	if (_isnan(f)) {
 		lstrcpy(buf, TEXT("NaN"));
@@ -188,6 +217,14 @@ static void js_number_string(TCHAR *buf, const double f)
 			_stprintf_s(tmp, JS_NUMBER_LENGTH, TEXT("%.*e"), k - 1, a);
 			if (k == 17 || _tcstod(tmp, NULL) == a) {
 				break;
+			}
+			// 2 の冪乗はすぐ下の実数との間隔がすぐ上との半分なので、最も近い k 桁の値が
+			// 戻せなくても、そのひとつ上の k 桁の値は戻せることがある (JavaScript はそれを選ぶ)
+			if (frexp(a, &ex) == 0.5) {
+				next_decimal(tmp, JS_NUMBER_LENGTH);
+				if (_tcstod(tmp, NULL) == a) {
+					break;
+				}
 			}
 		}
 	} else {
