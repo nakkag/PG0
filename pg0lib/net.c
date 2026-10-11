@@ -131,6 +131,8 @@ typedef enum {
 	NET_MSG_SIZE,
 	NET_MSG_RATE,
 	NET_MSG_MODIFIED,
+	NET_MSG_OUTDATED,
+	NET_MSG_VERSION,
 } NET_MSG_ID;
 
 /* Global Variables */
@@ -145,7 +147,9 @@ static const TCHAR *msg_jp[] = {
 	TEXT("netJoin: サーバーが混み合っています。しばらくしてからもう一度試してください。"),
 	TEXT("netSend: 送る値が大きすぎます（{bytes} バイトまで）。"),
 	TEXT("netSend: 送る回数が多すぎるので、一部を送りませんでした（1 秒に {rate} 回まで）。"),
-	TEXT("netJoin: プログラムがオンラインに保存したものと違います。保存してから実行してください。"),
+	TEXT("netJoin: プログラムに保存していない変更があります。保存してから実行してください。"),
+	TEXT("netJoin: このプログラムの新しい版がオンラインに保存されています。開き直してください（実行ファイルは作り直してください）。"),
+	TEXT("netJoin: 部屋「{room}」の人はこのプログラムの別の版を動かしています。全員が最新の版を開き直してください。"),
 };
 static const TCHAR *msg_en[] = {
 	TEXT("netJoin: works only in a program saved online (saving gives it a cid)."),
@@ -155,7 +159,9 @@ static const TCHAR *msg_en[] = {
 	TEXT("netJoin: the server is busy. Try again later."),
 	TEXT("netSend: the value is too large to send (up to {bytes} bytes)."),
 	TEXT("netSend: too many values were sent, so some were not ({rate} a second at most)."),
-	TEXT("netJoin: the program differs from the one saved online. Save it, then run it."),
+	TEXT("netJoin: the program has changes that are not saved. Save it, then run it."),
+	TEXT("netJoin: a newer version of this program has been saved online. Open it again (build the program again)."),
+	TEXT("netJoin: the people in room \"{room}\" run another version of this program. Everybody, open the latest version again."),
 };
 
 /* Local Function Prototypes */
@@ -1279,6 +1285,7 @@ int SFUNC _lib_func_netjoin(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHA
 	VALUEINFO *vi;
 	TCHAR cid[NET_CID_SIZE];
 	TCHAR result[NET_RESULT_SIZE];
+	TCHAR modified[4];
 	TCHAR *room, *p, *r;
 	DWORD start, check, len;
 	BOOL stopped = FALSE;
@@ -1342,7 +1349,11 @@ int SFUNC _lib_func_netjoin(EXECINFO *ei, VALUEINFO *param, VALUEINFO *ret, TCHA
 			if (_tcscmp(result, TEXT("cid")) == 0) {
 				net_notice(ei, NET_MSG_CID, NULL, NULL);
 			} else if (_tcscmp(result, TEXT("modified")) == 0) {
-				net_notice(ei, NET_MSG_MODIFIED, NULL, NULL);
+				// changes in the editor that are not saved (pg0.exe says so), or a newer version saved online
+				len = GetEnvironmentVariable(ONLINE_MODIFIED_ENV, modified, 4);
+				net_notice(ei, (len == 1 && *modified == TEXT('1')) ? NET_MSG_MODIFIED : NET_MSG_OUTDATED, NULL, NULL);
+			} else if (_tcscmp(result, TEXT("version")) == 0) {
+				net_notice(ei, NET_MSG_VERSION, TEXT("room"), room);
 			} else if (_tcscmp(result, TEXT("full")) == 0) {
 				net_notice(ei, NET_MSG_FULL, TEXT("room"), room);
 			} else if (_tcscmp(result, TEXT("closed")) == 0) {

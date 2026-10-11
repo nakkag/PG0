@@ -2360,17 +2360,19 @@ static BOOL program_hash(const TCHAR *code, TCHAR *hex)
 }
 
 /*
- * online_export_cid - pass the cid of the online script in the editor, and the hash of the program
- *                     (code) in the editor, to the script about to run (lib/net.pg0 meets the copies
- *                     of the same script with them; removed when there is no cid)
+ * online_export_cid - pass the cid of the online script in the editor, the hash of the program (code)
+ *                     in the editor and whether it has changes that are not saved (modified) to the
+ *                     script about to run (lib/net.pg0 meets the copies of the same script with them;
+ *                     removed when there is no cid)
  */
-void online_export_cid(const TCHAR *code)
+void online_export_cid(const TCHAR *code, const BOOL modified)
 {
 	TCHAR hex[65];
 	const TCHAR *cid = online_get_cid();
 
 	SetEnvironmentVariable(ONLINE_CID_ENV, cid);
 	SetEnvironmentVariable(ONLINE_HASH_ENV, (cid != NULL && code != NULL && program_hash(code, hex)) ? hex : NULL);
+	SetEnvironmentVariable(ONLINE_MODIFIED_ENV, (cid != NULL && modified) ? TEXT("1") : NULL);
 }
 
 /*
