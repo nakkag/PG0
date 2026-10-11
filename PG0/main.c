@@ -547,7 +547,7 @@ static void ExportOnline(void)
 		SendMessage(hEdit, WM_GETTEXT, len + 1, (LPARAM)buf);
 		*(buf + len) = TEXT('\0');
 	}
-	online_export_cid(buf);
+	online_export_cid(buf, SendMessage(hEdit, EM_GETMODIFY, 0, 0) == TRUE);
 	mem_free(&buf);
 }
 

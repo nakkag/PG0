@@ -23,6 +23,8 @@
 #define ONLINE_CID_ENV					TEXT("PG0_CID")
 // SHA-256 of the program in the editor, as hex (the server lets only the program saved under the cid in)
 #define ONLINE_HASH_ENV					TEXT("PG0_HASH")
+// "1" while the program in the editor has changes that are not saved (lib/net.pg0 words its notice by it)
+#define ONLINE_MODIFIED_ENV				TEXT("PG0_MODIFIED")
 
 /* Struct */
 // result of a request, posted to the window as LPARAM (free it with http_free_result)
