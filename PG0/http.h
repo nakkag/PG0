@@ -25,6 +25,10 @@
 #define ONLINE_HASH_ENV					TEXT("PG0_HASH")
 // "1" while the program in the editor has changes that are not saved (lib/net.pg0 words its notice by it)
 #define ONLINE_MODIFIED_ENV				TEXT("PG0_MODIFIED")
+// the edit password of the program in the editor as the server compares it (crc32, decimal), while the
+// program is private: a private script can be imported (#import("cid:...")) only by a private program
+// with the same password (pg0gen.exe started from the editor gets it too)
+#define ONLINE_PASSWORD_ENV				TEXT("PG0_PASSWORD")
 
 /* Struct */
 // result of a request, posted to the window as LPARAM (free it with http_free_result)
