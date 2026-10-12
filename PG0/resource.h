@@ -65,6 +65,7 @@
 #define IDS_STRING_MSG_FILE_CHANGED     70
 #define IDS_STRING_CONSOLE_RELOAD       71
 #define IDS_STRING_RELOAD_DIFF_TITLE    72
+#define IDS_STRING_ONLINE_PRIVATE_PASSWORD 73
 #define IDI_ICON_MAIN                   102
 #define IDR_MENU                        103
 #define IDR_ACCELERATOR                 106

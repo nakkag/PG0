@@ -250,7 +250,7 @@ BEGIN
     IDS_STRING_ONLINE_SAVE_TITLE "オンラインに保存"
     IDS_STRING_ONLINE_HISTORY_TITLE "変更履歴"
     IDS_STRING_ONLINE_COPY  "URLをコピー"
-    IDS_STRING_ONLINE_COPY_AUTORUN "自動実行URLをコピー"
+    IDS_STRING_ONLINE_COPY_AUTORUN "アプリURLをコピー"
     IDS_STRING_ONLINE_REMOVE "削除"
     IDS_STRING_ONLINE_REMOVE_PASSWORD "編集パスワードを入力してください。"
     IDS_STRING_ONLINE_READ_MORE "さらに読み込む..."
@@ -319,6 +319,7 @@ BEGIN
     IDS_STRING_MSG_FILE_CHANGED "ほかのプログラムがファイルを変更しました。\n読み込み直しますか？ (編集中の内容は失われます)"
     IDS_STRING_CONSOLE_RELOAD "ほかのプログラムがファイルを変更したため、読み込み直しました"
     IDS_STRING_RELOAD_DIFF_TITLE "外部での変更"
+    IDS_STRING_ONLINE_PRIVATE_PASSWORD "このプログラムは非公開です。編集パスワードを入力してください。"
 END
 
 #endif    // 日本語 (日本) resources
@@ -426,7 +427,7 @@ BEGIN
     IDS_STRING_ONLINE_SAVE_TITLE "Save to online"
     IDS_STRING_ONLINE_HISTORY_TITLE "Revision history"
     IDS_STRING_ONLINE_COPY  "Copy URL"
-    IDS_STRING_ONLINE_COPY_AUTORUN "Copy autorun URL"
+    IDS_STRING_ONLINE_COPY_AUTORUN "Copy app URL"
     IDS_STRING_ONLINE_REMOVE "Remove"
     IDS_STRING_ONLINE_REMOVE_PASSWORD "Enter the edit password."
     IDS_STRING_ONLINE_READ_MORE "Read more..."
@@ -497,6 +498,7 @@ BEGIN
     IDS_STRING_MSG_FILE_CHANGED "The file has been changed by another program.\nDo you want to reload it? (Your unsaved changes will be lost)"
     IDS_STRING_CONSOLE_RELOAD "The file was changed by another program and has been reloaded"
     IDS_STRING_RELOAD_DIFF_TITLE "External changes"
+    IDS_STRING_ONLINE_PRIVATE_PASSWORD "This program is private. Enter the edit password."
 END
 
 #endif    // 英語 (米国) resources

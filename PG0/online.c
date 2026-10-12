@@ -94,6 +94,10 @@ static TCHAR server[BUF_SIZE];
 static TCHAR uuid[ONLINE_CID_SIZE];
 static TCHAR author[BUF_SIZE];
 static TCHAR password[BUF_SIZE];
+// the private script whose edit password was given, and the password as the
+// server compares it (a private script shows its code only with it)
+static TCHAR unlock_cid[ONLINE_CID_SIZE];
+static unsigned int unlock_crc;
 static TCHAR keyword[BUF_SIZE];
 static TCHAR list_filter[ONLINE_TAG_SIZE];
 static TCHAR list_sort[ONLINE_TAG_SIZE];
@@ -148,6 +152,7 @@ typedef struct _OPEN_DATA {
 	RECT search_frame;
 	int list_id;
 	int script_id;
+	int script_index;
 	int skip;
 	BOOL more;
 	BOOL closing;
@@ -172,6 +177,7 @@ typedef struct _DIFF_DATA {
 	BOOL old_ready;
 	BOOL new_ready;
 	BOOL closing;
+	BOOL asked;
 } DIFF_DATA;
 
 // the save dialog
@@ -187,11 +193,14 @@ typedef struct _SAVE_DATA {
 	TCHAR password[BUF_SIZE];
 } SAVE_DATA;
 
-// the password input dialog
+// the password input dialog (title, label and the text to start with when given)
 typedef struct _INPUT_DATA {
 	HFONT hFont;
 	TCHAR *ret;
 	int size;
+	const TCHAR *title;
+	const TCHAR *label;
+	const TCHAR *initial;
 } INPUT_DATA;
 
 /* Local Function Prototypes */
@@ -485,6 +494,50 @@ static BOOL is_new_sort(void)
 static TCHAR *make_url(const TCHAR *path)
 {
 	return alloc_join(server, path);
+}
+
+/*
+ * item_url - URL of a script (or of a version of it); a private script that was opened with its password gets the password again
+ */
+static TCHAR *item_url(const TCHAR *cid, const TCHAR *path)
+{
+	TCHAR *url, *tmp;
+	TCHAR query[BUF_SIZE];
+
+	url = make_url(path);
+	if (url == NULL || *unlock_cid == TEXT('\0') || lstrcmp(unlock_cid, cid) != 0) {
+		return url;
+	}
+	wsprintf(query, TEXT("?password=%u"), unlock_crc);
+	tmp = url;
+	url = alloc_join(tmp, query);
+	mem_free(&tmp);
+	return url;
+}
+
+static INT_PTR CALLBACK input_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam);
+
+/*
+ * ask_password - ask for the edit password of a private script (the one remembered from saving is offered); FALSE when none is given
+ */
+static BOOL ask_password(const HWND hDlg, const TCHAR *cid)
+{
+	INPUT_DATA id;
+	TCHAR pass[BUF_SIZE];
+
+	ZeroMemory(&id, sizeof(INPUT_DATA));
+	*pass = TEXT('\0');
+	id.ret = pass;
+	id.size = BUF_SIZE;
+	id.title = res(IDS_STRING_ONLINE_OPEN_TITLE);
+	id.label = res(IDS_STRING_ONLINE_PRIVATE_PASSWORD);
+	id.initial = password;
+	if (dialog_box(hDlg, 0, input_proc, (LPARAM)&id) != IDOK) {
+		return FALSE;
+	}
+	lstrcpyn(unlock_cid, cid, ONLINE_CID_SIZE);
+	unlock_crc = password_crc(pass);
+	return TRUE;
 }
 
 /*
@@ -980,13 +1033,14 @@ static void open_request_script(const HWND hDlg, OPEN_DATA *od, const int index)
 	if (item == NULL || od->script_id != 0) {
 		return;
 	}
+	od->script_index = index;
 	if (od->history) {
 		_stprintf_s(path, BUF_SIZE, TEXT("/api/script/item/%s/%.0f"), od->cid, item->update_time);
 	} else {
 		wsprintf(path, TEXT("/api/script/item/%s"), item->cid);
 		lstrcpyn(od->cid, item->cid, ONLINE_CID_SIZE);
 	}
-	if ((url = make_url(path)) == NULL) {
+	if ((url = item_url(od->cid, path)) == NULL) {
 		return;
 	}
 	od->script_id = next_request_id();
@@ -1010,6 +1064,15 @@ static void open_script_result(const HWND hDlg, OPEN_DATA *od, const HTTP_RESULT
 			return;
 		}
 		message(hDlg, res(IDS_STRING_ONLINE_ERROR_CONNECTION), MB_ICONEXCLAMATION);
+		break;
+	case 401:
+		// a private script: its code comes with the edit password
+		if (*unlock_cid != TEXT('\0') && lstrcmp(unlock_cid, od->cid) == 0) {
+			message(hDlg, res(IDS_STRING_ONLINE_ERROR_UNAUTHORIZED), MB_ICONEXCLAMATION);
+		}
+		if (ask_password(hDlg, od->cid) == TRUE) {
+			open_request_script(hDlg, od, od->script_index);
+		}
 		break;
 	case 404:
 		message(hDlg, res(IDS_STRING_ONLINE_ERROR_NOT_FOUND), MB_ICONEXCLAMATION);
@@ -1040,16 +1103,17 @@ static INT_PTR CALLBACK input_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lP
 
 			id = (INPUT_DATA *)lParam;
 			SetWindowLongPtr(hDlg, DWLP_USER, (LONG_PTR)id);
-			SetWindowText(hDlg, res(IDS_STRING_ONLINE_REMOVE));
+			SetWindowText(hDlg, (id->title != NULL) ? id->title : res(IDS_STRING_ONLINE_REMOVE));
 			id->hFont = dialog_font();
 			fh = text_height(hDlg, id->hFont);
 			eh = fh + Scale(8);
 			bw = Scale(88);
 			bh = fh + Scale(14);
 
-			hLabel = create_control(hDlg, TEXT("STATIC"), res(IDS_STRING_ONLINE_REMOVE_PASSWORD), SS_LEFT, 0, IDC_LABEL, id->hFont);
-			hEdit = create_control(hDlg, TEXT("EDIT"), TEXT(""), WS_TABSTOP | ES_AUTOHSCROLL | ES_PASSWORD, WS_EX_CLIENTEDGE, IDC_INPUT, id->hFont);
+			hLabel = create_control(hDlg, TEXT("STATIC"), (id->label != NULL) ? id->label : res(IDS_STRING_ONLINE_REMOVE_PASSWORD), SS_LEFT, 0, IDC_LABEL, id->hFont);
+			hEdit = create_control(hDlg, TEXT("EDIT"), (id->initial != NULL) ? id->initial : TEXT(""), WS_TABSTOP | ES_AUTOHSCROLL | ES_PASSWORD, WS_EX_CLIENTEDGE, IDC_INPUT, id->hFont);
 			SendMessage(hEdit, EM_SETLIMITTEXT, id->size - 1, 0);
+			SendMessage(hEdit, EM_SETSEL, 0, -1);
 			hOk = create_control(hDlg, TEXT("BUTTON"), res(IDS_STRING_ONLINE_OK_BUTTON), WS_TABSTOP | BS_DEFPUSHBUTTON, 0, IDOK, id->hFont);
 			hCancel = create_control(hDlg, TEXT("BUTTON"), res(IDS_STRING_ONLINE_CANCEL_BUTTON), WS_TABSTOP | BS_PUSHBUTTON, 0, IDCANCEL, id->hFont);
 			y = margin;
@@ -1185,6 +1249,8 @@ static void diff_fail(const HWND hDlg, DIFF_DATA *dd, const HTTP_RESULT *result)
 	dd->closing = TRUE;
 	if (result == NULL || result->status == 0 || result->status == 200) {
 		message(hDlg, res(IDS_STRING_ONLINE_ERROR_CONNECTION), MB_ICONEXCLAMATION);
+	} else if (result->status == 401) {
+		message(hDlg, res(IDS_STRING_ONLINE_ERROR_UNAUTHORIZED), MB_ICONEXCLAMATION);
 	} else if (result->status == 404) {
 		message(hDlg, res(IDS_STRING_ONLINE_ERROR_NOT_FOUND), MB_ICONEXCLAMATION);
 	} else {
@@ -1203,7 +1269,7 @@ static BOOL diff_request_code(const HWND hDlg, DIFF_DATA *dd, const double time,
 	BOOL ret;
 
 	_stprintf_s(path, BUF_SIZE, TEXT("/api/script/item/%s/%.0f"), dd->cid, time);
-	if ((url = make_url(path)) == NULL) {
+	if ((url = item_url(dd->cid, path)) == NULL) {
 		return FALSE;
 	}
 	*id = next_request_id();
@@ -1294,6 +1360,36 @@ static void diff_code_result(const HWND hDlg, DIFF_DATA *dd, const HTTP_RESULT *
 	const TCHAR *str;
 	TCHAR *code;
 
+	if (result->status == 401 && !dd->asked) {
+		// a private script: the versions are read again with the edit password
+		// (the other answer of this pair, which arrives while the password is
+		// asked for, no longer matches a request)
+		dd->asked = TRUE;
+		dd->old_id = dd->new_id = 0;
+		dd->old_ready = dd->new_ready = FALSE;
+		if (ask_password(hDlg, dd->cid) == FALSE) {
+			diff_end(hDlg, dd);
+			return;
+		}
+		if (diff_request_code(hDlg, dd, dd->time, &dd->new_id) == FALSE) {
+			diff_fail(hDlg, dd, NULL);
+			return;
+		}
+		if (dd->has_prev) {
+			if (diff_request_code(hDlg, dd, dd->prev_time, &dd->old_id) == FALSE) {
+				diff_fail(hDlg, dd, NULL);
+			}
+		} else if (dd->prev_id != 0) {
+			// (the version before this one is still being looked up; its code is asked for when it is found)
+		} else if (dd->prev_skip >= 0) {
+			if (diff_request_previous(hDlg, dd) == FALSE) {
+				diff_fail(hDlg, dd, NULL);
+			}
+		} else {
+			dd->old_ready = TRUE;
+		}
+		return;
+	}
 	if (result->status != 200) {
 		diff_fail(hDlg, dd, result);
 		return;
@@ -1555,15 +1651,10 @@ static void open_show_menu(const HWND hDlg, OPEN_DATA *od, const int index, cons
 	switch (cmd) {
 	case ID_ITEM_COPY:
 	case ID_ITEM_COPY_AUTORUN:
-		// the URL of the web version that opens (and runs) the script
-		tmp = alloc_join(TEXT("/dev/?cid="), cid);
+		// the URL of the web version that opens the script in the editor, or runs it as an app
+		tmp = alloc_join((cmd == ID_ITEM_COPY_AUTORUN) ? TEXT("/app/?cid=") : TEXT("/dev/?cid="), cid);
 		url = (tmp != NULL) ? make_url(tmp) : NULL;
 		mem_free(&tmp);
-		if (url != NULL && cmd == ID_ITEM_COPY_AUTORUN) {
-			tmp = url;
-			url = alloc_join(tmp, TEXT("&run=1"));
-			mem_free(&tmp);
-		}
 		if (url != NULL) {
 			set_clipboard(hDlg, url);
 			mem_free(&url);
