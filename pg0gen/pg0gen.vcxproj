@@ -153,6 +153,7 @@
     <ClCompile Include="..\PG0\script_string.c" />
     <ClCompile Include="..\PG0\script_utility.c" />
     <ClCompile Include="..\PG0\script_image.c" />
+    <ClCompile Include="..\PG0\script_minify.c" />
     <ClCompile Include="..\PG0\script_parse.c" />
     <ClCompile Include="..\PG0\script_read.c" />
     <ClCompile Include="main.c" />
@@ -165,6 +166,7 @@
     <ClInclude Include="..\PG0\script_struct.h" />
     <ClInclude Include="..\PG0\script_utility.h" />
     <ClInclude Include="..\PG0\script_image.h" />
+    <ClInclude Include="..\PG0\script_minify.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>

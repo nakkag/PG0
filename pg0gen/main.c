@@ -21,6 +21,7 @@
 #include "../PG0/script_memory.h"
 #include "../PG0/script_utility.h"
 #include "../PG0/script_image.h"
+#include "../PG0/script_minify.h"
 #include "../PG0/http.h"
 
 #pragma comment(lib, "Version.lib")
@@ -465,6 +466,14 @@ int _tmain(int argc, TCHAR **argv)
 	//テンプレート (pg0gen.exe と同じフォルダ)
 	if (window < 0) {
 		window = uses_library(ScriptInfo, IMAGE_LIB_SCREEN);
+	}
+
+	// short names for the variables and the functions: a smaller image that reads like nothing
+	if (MinifyScript(ScriptInfo) == FALSE) {
+		_tprintf(msg_text(TEXT("名前の短縮に失敗しました。\n"), TEXT("Failed to shorten the names.\n")));
+		FreeScriptInfo(ScriptInfo);
+		EndScript();
+		return -1;
 	}
 	get_module_dir(tmpl);
 	if (lstrlen(tmpl) + lstrlen(TEMPLATE_WINDOW) >= MAX_PATH) {
