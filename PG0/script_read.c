@@ -524,6 +524,8 @@ static TCHAR *DownloadScript(TCHAR *cid)
 	TCHAR *p;
 	DWORD len;
 
+	TCHAR password[BUF_SIZE];
+
 	len = GetEnvironmentVariable(ONLINE_SERVER_ENV, server, BUF_SIZE);
 	if (len == 0 || len >= BUF_SIZE) {
 		lstrcpy(server, ONLINE_DEFAULT_SERVER);
@@ -531,13 +533,22 @@ static TCHAR *DownloadScript(TCHAR *cid)
 	for (len = lstrlen(server); len > 0 && server[len - 1] == TEXT('/'); len--) {
 		server[len - 1] = TEXT('\0');
 	}
-	url = mem_alloc(sizeof(TCHAR) * (lstrlen(server) + lstrlen(IMPORT_URL_PATH) + lstrlen(cid) + 1));
+	// a private script comes only with the password of a private program that has the same one
+	len = GetEnvironmentVariable(ONLINE_PASSWORD_ENV, password, BUF_SIZE);
+	if (len == 0 || len >= BUF_SIZE) {
+		*password = TEXT('\0');
+	}
+	url = mem_alloc(sizeof(TCHAR) * (lstrlen(server) + lstrlen(IMPORT_URL_PATH) + lstrlen(cid) + lstrlen(TEXT("?password=")) + lstrlen(password) + 1));
 	if (url == NULL) {
 		return NULL;
 	}
 	p = str_cpy(url, server);
 	p = str_cpy(p, IMPORT_URL_PATH);
-	str_cpy(p, cid);
+	p = str_cpy(p, cid);
+	if (*password != TEXT('\0')) {
+		p = str_cpy(p, TEXT("?password="));
+		str_cpy(p, password);
+	}
 	res = http_request(TEXT("GET"), url, NULL);
 	mem_free(&url);
 	if (res == NULL) {

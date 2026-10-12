@@ -2196,6 +2196,9 @@ static void save_result(const HWND hDlg, SAVE_DATA *sd, const HTTP_RESULT *resul
 		current = sd->content;
 		lstrcpyn(author, sd->content.author, BUF_SIZE);
 		lstrcpyn(password, sd->password, BUF_SIZE);
+		// (the saved script is open with this password, for the private scripts it imports)
+		lstrcpyn(unlock_cid, sd->content.cid, ONLINE_CID_SIZE);
+		unlock_crc = password_crc(sd->password);
 		EndDialog(hDlg, IDOK);
 		break;
 	case 401:
@@ -2459,11 +2462,19 @@ static BOOL program_hash(const TCHAR *code, TCHAR *hex)
 void online_export_cid(const TCHAR *code, const BOOL modified)
 {
 	TCHAR hex[65];
+	TCHAR crc[16];
 	const TCHAR *cid = online_get_cid();
 
 	SetEnvironmentVariable(ONLINE_CID_ENV, cid);
 	SetEnvironmentVariable(ONLINE_HASH_ENV, (cid != NULL && code != NULL && program_hash(code, hex)) ? hex : NULL);
 	SetEnvironmentVariable(ONLINE_MODIFIED_ENV, (cid != NULL && modified) ? TEXT("1") : NULL);
+	// the password of a private program (as it was opened or saved), for the private scripts it imports
+	if (cid != NULL && current.private_mode && *unlock_cid != TEXT('\0') && lstrcmp(unlock_cid, cid) == 0) {
+		wsprintf(crc, TEXT("%u"), unlock_crc);
+		SetEnvironmentVariable(ONLINE_PASSWORD_ENV, crc);
+	} else {
+		SetEnvironmentVariable(ONLINE_PASSWORD_ENV, NULL);
+	}
 }
 
 /*
