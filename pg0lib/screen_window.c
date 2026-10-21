@@ -93,6 +93,12 @@ typedef struct _SC_VIEW {
 	int height;
 } SC_VIEW;
 
+/* a touch of the screen: from its TOUCHEVENTF_DOWN to its TOUCHEVENTF_UP */
+typedef struct _SC_CONTACT {
+	DWORD id;
+	SC_POINT pt;
+} SC_CONTACT;
+
 typedef BOOL (WINAPI *REGISTERTOUCHWINDOW)(HWND, ULONG);
 typedef BOOL (WINAPI *GETTOUCHINPUTINFO)(HANDLE, UINT, TOUCHINPUT *, int);
 typedef BOOL (WINAPI *CLOSETOUCHINPUTHANDLE)(HANDLE);
@@ -121,6 +127,8 @@ static BOOL g_use_gdi = FALSE;			/* Direct2D unavailable: paint with GDI */
 static int g_dpi = 96;
 static BOOL g_captured = FALSE;
 static BOOL g_touch_active = FALSE;
+static SC_CONTACT g_contacts[SC_MAX_TOUCH];	/* touches down on the window, oldest first (under input_cs) */
+static int g_contact_count = 0;
 static BOOL g_placed = FALSE;
 static GETTOUCHINPUTINFO pGetTouchInputInfo = NULL;
 static CLOSETOUCHINPUTHANDLE pCloseTouchInputHandle = NULL;
@@ -212,6 +220,7 @@ void sc_input_reset(void)
 {
 	EnterCriticalSection(&g_sc.input_cs);
 	ZeroMemory(&g_sc.touch, sizeof(g_sc.touch));
+	g_contact_count = 0;
 	g_sc.key_count = 0;
 	LeaveCriticalSection(&g_sc.input_cs);
 }
@@ -882,6 +891,15 @@ static void key_clear(void)
 }
 
 /*
+ * mouse_from_touch - the mouse message was made by Windows from a touch
+ * (the primary contact also comes as mouse messages; WM_TOUCH has it already)
+ */
+static BOOL mouse_from_touch(void)
+{
+	return ((GetMessageExtraInfo() & 0xFFFFFF80) == 0xFF515700);
+}
+
+/*
  * mouse_move - pointer position in screen coordinates
  */
 static void mouse_move(int x, int y)
@@ -930,16 +948,19 @@ static void mouse_up(HWND hWnd)
 }
 
 /*
- * touch_input - WM_TOUCH: all contact points
+ * touch_input - WM_TOUCH: the touches of the screen are followed by id. A touch
+ * is one from its TOUCHEVENTF_DOWN to its TOUCHEVENTF_UP, and the points of
+ * inTouch() are these touches where the last message put them: a message
+ * need not list every touch (a finger that does not move sends nothing), so
+ * a touch stays until its own UP, and the touch of a contact the window has
+ * not seen yet begins with the message that lists it.
  */
 static void touch_input(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
 	TOUCHINPUT inputs[SC_MAX_TOUCH];
 	UINT count = LOWORD(wParam);
 	UINT i;
-	int n = 0;
-	BOOL primary_found = FALSE;
-	double px = 0, py = 0;
+	int c, n;
 
 	if (pGetTouchInputInfo == NULL) {
 		return;
@@ -953,38 +974,38 @@ static void touch_input(HWND hWnd, WPARAM wParam, LPARAM lParam)
 	EnterCriticalSection(&g_sc.input_cs);
 	for (i = 0; i < count; i++) {
 		POINT pt;
-		double sx, sy;
+		for (c = 0; c < g_contact_count && g_contacts[c].id != inputs[i].dwID; c++)
+			;
+		if (inputs[i].dwFlags & TOUCHEVENTF_UP) {
+			if (c < g_contact_count) {
+				g_contact_count--;
+				MoveMemory(&g_contacts[c], &g_contacts[c + 1], (g_contact_count - c) * sizeof(SC_CONTACT));
+			}
+			continue;
+		}
+		if (c == g_contact_count) {
+			if (g_contact_count >= SC_MAX_TOUCH) {
+				continue;
+			}
+			g_contacts[c].id = inputs[i].dwID;
+			g_contact_count++;
+		}
 		pt.x = inputs[i].x / 100;
 		pt.y = inputs[i].y / 100;
 		ScreenToClient(hWnd, &pt);
-		to_screen_point(pt.x, pt.y, &sx, &sy);
-		if (inputs[i].dwFlags & TOUCHEVENTF_PRIMARY) {
-			primary_found = TRUE;
-			px = sx;
-			py = sy;
-		}
-		if (inputs[i].dwFlags & TOUCHEVENTF_UP) {
-			continue;
-		}
-		g_sc.touch.pos[n].x = sx;
-		g_sc.touch.pos[n].y = sy;
-		n++;
+		to_screen_point(pt.x, pt.y, &g_contacts[c].pt.x, &g_contacts[c].pt.y);
 	}
-	if (primary_found) {
-		g_sc.touch.x = px;
-		g_sc.touch.y = py;
-	} else if (n > 0) {
+	n = g_contact_count;
+	for (c = 0; c < n; c++) {
+		g_sc.touch.pos[c] = g_contacts[c].pt;
+	}
+	g_sc.touch.count = n;
+	if (n > 0) {
 		g_sc.touch.x = g_sc.touch.pos[0].x;
 		g_sc.touch.y = g_sc.touch.pos[0].y;
 	}
-	if (n > 0) {
-		g_sc.touch.count = n;
-		g_sc.touch.touch = 1;
-		g_sc.touch.button = 0;
-	} else {
-		g_sc.touch.touch = 0;
-		g_sc.touch.button = 0;
-	}
+	g_sc.touch.touch = (n > 0) ? 1 : 0;
+	g_sc.touch.button = 0;
 	LeaveCriticalSection(&g_sc.input_cs);
 	if (pCloseTouchInputHandle != NULL) {
 		pCloseTouchInputHandle((HANDLE)lParam);
@@ -1172,22 +1193,28 @@ static LRESULT CALLBACK ScreenProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 				set_fullscreen(hWnd, !g_fullscreen);
 				break;
 			default:
-				mouse_down(hWnd, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), 0);
+				if (!mouse_from_touch()) {
+					mouse_down(hWnd, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), 0);
+				}
 				break;
 			}
 		}
 		break;
 
 	case WM_MBUTTONDOWN:
-		mouse_down(hWnd, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), 1);
+		if (!mouse_from_touch()) {
+			mouse_down(hWnd, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), 1);
+		}
 		break;
 
 	case WM_RBUTTONDOWN:
-		mouse_down(hWnd, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), 2);
+		if (!mouse_from_touch()) {
+			mouse_down(hWnd, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), 2);
+		}
 		break;
 
 	case WM_MOUSEMOVE:
-		if (!g_touch_active) {
+		if (!g_touch_active && !mouse_from_touch()) {
 			mouse_move(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		}
 		break;
@@ -1195,7 +1222,7 @@ static LRESULT CALLBACK ScreenProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 	case WM_LBUTTONUP:
 	case WM_MBUTTONUP:
 	case WM_RBUTTONUP:
-		if (g_captured) {
+		if (g_captured && !mouse_from_touch()) {
 			mouse_up(hWnd);
 		}
 		break;
@@ -1377,6 +1404,7 @@ BOOL sc_window_start(void)
 	g_fullscreen = FALSE;
 	g_captured = FALSE;
 	g_touch_active = FALSE;
+	g_contact_count = 0;
 	g_placed = FALSE;
 	/* PG0_SCREEN_GDI=1 forces the GDI presenter (no Direct2D) */
 	g_use_gdi = (GetEnvironmentVariable(TEXT("PG0_SCREEN_GDI"), NULL, 0) > 0);
